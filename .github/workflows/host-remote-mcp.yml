@@ -136,22 +136,33 @@ jobs:
           echo "Testing public endpoint..."
           # Wait a bit for tunnel to be fully ready
           sleep 5
-          HEALTH_RESPONSE=$(curl -s $TUNNEL_URL/health)
+          
+          # Try to access the endpoint with error handling
+          HEALTH_RESPONSE=$(curl -s --max-time 10 $TUNNEL_URL/health 2>&1 || true)
           
           # Check if response is JSON
           if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
             echo "✅ Public endpoint is working!"
             echo "$HEALTH_RESPONSE" | jq
           else
-            echo "❌ Public endpoint test failed!"
-            echo "Response was not JSON. Got:"
-            echo "$HEALTH_RESPONSE"
+            echo "⚠️ Public endpoint test failed. Retrying..."
+            sleep 5
+            HEALTH_RESPONSE=$(curl -s --max-time 10 $TUNNEL_URL/health 2>&1 || true)
             
-            # Check cloudflared logs
-            echo ""
-            echo "Cloudflared logs:"
-            tail -50 cloudflared.log
-            exit 1
+            if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
+              echo "✅ Public endpoint is working on retry!"
+              echo "$HEALTH_RESPONSE" | jq
+            else
+              echo "❌ Public endpoint test failed!"
+              echo "Response was not JSON. Got:"
+              echo "$HEALTH_RESPONSE"
+              
+              # Check cloudflared logs
+              echo ""
+              echo "Cloudflared logs:"
+              tail -50 cloudflared.log
+              exit 1
+            fi
           fi
 
       - name: Upload tunnel info
