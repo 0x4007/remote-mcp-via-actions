@@ -142,11 +142,14 @@ jobs:
           if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
             echo "✅ Public endpoint is working!"
             echo "$HEALTH_RESPONSE" | jq
+            echo "ENDPOINT_TEST_PASSED=true" >> $GITHUB_ENV
           else
             echo "❌ Public endpoint test failed!"
             echo "Response:"
             echo "$HEALTH_RESPONSE"
-            exit 1
+            echo "ENDPOINT_TEST_PASSED=false" >> $GITHUB_ENV
+            echo "⚠️  Will not update KV store with broken tunnel URL"
+            echo "⚠️  Continuing deployment but skipping KV update to prevent breaking existing service"
           fi
 
       - name: Upload tunnel info
@@ -188,6 +191,7 @@ jobs:
           git push || echo "Push failed"
 
       - name: Update Cloudflare Worker KV
+        if: env.ENDPOINT_TEST_PASSED == 'true'
         env:
           CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -209,7 +213,15 @@ jobs:
           echo "Claude Code MCP configuration:"
           echo "claude mcp add --transport http custom-demo https://mcp.pavlovcik.com/mcp"
 
+      - name: KV Update Skipped
+        if: env.ENDPOINT_TEST_PASSED == 'false'
+        run: |
+          echo "⚠️  KV update was skipped due to failed endpoint test"
+          echo "⚠️  The existing mcp.pavlovcik.com service should continue working"
+          echo "⚠️  This prevents breaking the service when tunnel registration fails"
+
       - name: Keep server running
+        if: env.ENDPOINT_TEST_PASSED == 'true'
         run: |
           echo "Custom MCP Server running at: $TUNNEL_URL"
           echo "Available tools: calculate_sum, echo"
@@ -234,3 +246,15 @@ jobs:
           done
           
           echo "Server has shut down"
+
+      - name: Deployment Failed - Cleanup
+        if: env.ENDPOINT_TEST_PASSED == 'false'
+        run: |
+          echo "❌ Deployment failed due to tunnel connectivity issues"
+          echo "❌ Existing service at mcp.pavlovcik.com should continue working"
+          echo "❌ This deployment will be terminated to avoid resource waste"
+          echo ""
+          echo "To debug:"
+          echo "1. Check if cloudflared tunnel process died early"
+          echo "2. Check tunnel registration logs"
+          echo "3. Verify local server is responding on port 8081"
