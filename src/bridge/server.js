@@ -653,9 +653,9 @@ class MCPProxyServer extends EventEmitter {
         }
         return; // Skip directory scanning if config.json is found
       }
-    } catch (error) {
-      console.log(`No config.json found or error loading it: ${error.message}`);
-      console.log(`Falling back to directory scanning...`);
+      } catch (error) {
+        console.log(`Error parsing config: ${error.message}`);
+      }
     }
 
     // Fall back to directory scanning
