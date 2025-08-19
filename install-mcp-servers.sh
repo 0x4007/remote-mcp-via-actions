@@ -26,11 +26,7 @@ export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-dummy}"
 cd ..
 
 # Install other MCP servers as needed
-# Example: MCP Server Fetch
-echo "Installing MCP Server Fetch..."
-npm install -g @modelcontextprotocol/server-fetch
-
-# Add more MCP servers here...
+# Add more MCP servers here when they become available...
 
 # Create a configuration file for the bridge
 cat > "$MCP_DIR/config.json" << EOF
@@ -41,11 +37,6 @@ cat > "$MCP_DIR/config.json" << EOF
       "command": "$MCP_DIR/zen-mcp-server/.zen_venv/bin/python",
       "args": ["$MCP_DIR/zen-mcp-server/server.py"],
       "cwd": "$MCP_DIR/zen-mcp-server"
-    },
-    {
-      "name": "fetch",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-fetch"]
     }
   ]
 }
