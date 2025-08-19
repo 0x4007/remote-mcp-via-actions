@@ -15,7 +15,7 @@ Go to Settings → Secrets and variables → Actions, and add:
 
 ### 3. Deploy the MCP Server
 1. Go to the [Actions tab](../../actions)
-2. Select "Host Remote MCP Servers (Quick Tunnel)"
+2. Select "Deploy MCP"
 3. Click "Run workflow"
 4. Wait ~2 minutes for deployment
 
@@ -62,7 +62,7 @@ You can create a bash alias or script to start the MCP server:
 
 ```bash
 # Add to your ~/.bashrc or ~/.zshrc
-alias start-mcp='gh workflow run -R 0x4007/remote-mcp-via-actions host-remote-mcp-quick.yml && echo "MCP server starting... Will be available at https://mcp.pavlovcik.com in ~2 minutes"'
+alias start-mcp='gh workflow run -R 0x4007/remote-mcp-via-actions deploy-mcp.yml && echo "MCP server starting... Will be available at https://mcp.pavlovcik.com in ~2 minutes"'
 ```
 
 Then simply run `start-mcp` before starting Claude Code.

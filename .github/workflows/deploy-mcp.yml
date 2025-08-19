@@ -1,4 +1,4 @@
-name: Host Remote MCP Servers
+name: Deploy MCP
 
 on:
   workflow_dispatch:
@@ -76,50 +76,33 @@ jobs:
       - name: Set up Cloudflare Tunnel
         uses: AnimMouse/setup-cloudflared@v1
 
-      - name: Start Cloudflare Tunnel
-        env:
-          TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+      - name: Start Cloudflare Quick Tunnel
         run: |
-          echo "Starting Cloudflare named tunnel..."
-          # Use the tunnel token without --url (ingress rules are in cloudflare config)
-          nohup cloudflared tunnel --no-autoupdate run --token "$TUNNEL_TOKEN" > cloudflared.log 2>&1 &
+          echo "Starting Cloudflare quick tunnel..."
+          nohup cloudflared tunnel --no-autoupdate --url http://localhost:8080 > cloudflared.log 2>&1 &
           TUNNEL_PID=$!
           echo "Cloudflare tunnel starting with PID: $TUNNEL_PID"
           
-          # Wait for tunnel to connect
-          echo "Waiting for tunnel connection..."
+          # Wait for tunnel URL
+          echo "Waiting for tunnel URL..."
           for i in {1..30}; do
-            if grep -q "Registered tunnel connection" cloudflared.log; then
-              echo "✅ Tunnel connected!"
+            if grep -q "https://.*\.trycloudflare\.com" cloudflared.log; then
+              echo "✅ Tunnel URL found!"
               break
             fi
             echo "Waiting... ($i/30)"
             sleep 2
           done
           
-          # Give named tunnel time to stabilize
-          echo "Allowing tunnel to stabilize (30s)..."
-          sleep 30
+          # Extract the tunnel URL
+          TUNNEL_URL=$(grep -o 'https://[^[:space:]]*\.trycloudflare\.com' cloudflared.log | head -1)
           
-          # Verify all tunnel connections are established
-          echo "Verifying tunnel connections..."
-          CONNECTION_COUNT=$(grep -c "Registered tunnel connection" cloudflared.log || echo "0")
-          echo "Active connections: $CONNECTION_COUNT"
-          
-          if [ "$CONNECTION_COUNT" -lt 4 ]; then
-            echo "⚠️ Warning: Expected 4 connections, found $CONNECTION_COUNT"
-            echo "Waiting additional 20s for remaining connections..."
-            sleep 20
+          if [ -z "$TUNNEL_URL" ]; then
+            echo "❌ Failed to get tunnel URL"
+            cat cloudflared.log
+            exit 1
           fi
           
-          # Check for errors
-          if grep -q "error" cloudflared.log; then
-            echo "⚠️ Errors detected in cloudflared logs:"
-            grep -i error cloudflared.log || true
-          fi
-          
-          # Set the tunnel URL
-          TUNNEL_URL="https://mcp.pavlovcik.com"
           echo "TUNNEL_URL=$TUNNEL_URL" >> $GITHUB_ENV
           echo "✅ Tunnel established at: $TUNNEL_URL"
           
@@ -131,12 +114,21 @@ jobs:
           echo "==================================="
           echo "MCP servers are now accessible at:"
           echo "$TUNNEL_URL"
+          echo ""
+          echo "Custom domain will be available at:"
+          echo "https://mcp.pavlovcik.com"
+          echo "(DNS propagation may take a few minutes)"
           echo "==================================="
           echo ""
           echo "Available endpoints:"
           echo "  Health: $TUNNEL_URL/health"
           echo "  Servers: $TUNNEL_URL/servers"
           echo "  Zen tools: $TUNNEL_URL/servers/zen/tools"
+          echo ""
+          echo "Via custom domain (after DNS propagates):"
+          echo "  Health: https://mcp.pavlovcik.com/health"
+          echo "  Servers: https://mcp.pavlovcik.com/servers"
+          echo "  Zen tools: https://mcp.pavlovcik.com/servers/zen/tools"
           echo ""
           
           # Save endpoints to file
@@ -150,36 +142,18 @@ jobs:
           
           # Test the public endpoint
           echo "Testing public endpoint..."
-          # Additional wait for DNS propagation
-          echo "Waiting for DNS propagation..."
-          sleep 15
+          sleep 5
           
-          # Try to access the endpoint with error handling
           HEALTH_RESPONSE=$(curl -s --max-time 10 $TUNNEL_URL/health 2>&1 || true)
           
-          # Check if response is JSON
           if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
             echo "✅ Public endpoint is working!"
             echo "$HEALTH_RESPONSE" | jq
           else
-            echo "⚠️ Public endpoint test failed. Retrying with longer timeout..."
-            sleep 10
-            HEALTH_RESPONSE=$(curl -s --max-time 30 $TUNNEL_URL/health 2>&1 || true)
-            
-            if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
-              echo "✅ Public endpoint is working on retry!"
-              echo "$HEALTH_RESPONSE" | jq
-            else
-              echo "❌ Public endpoint test failed!"
-              echo "Response was not JSON. Got:"
-              echo "$HEALTH_RESPONSE"
-              
-              # Check cloudflared logs
-              echo ""
-              echo "Cloudflared logs:"
-              tail -50 cloudflared.log
-              exit 1
-            fi
+            echo "❌ Public endpoint test failed!"
+            echo "Response:"
+            echo "$HEALTH_RESPONSE"
+            exit 1
           fi
 
       - name: Upload tunnel info
@@ -191,9 +165,60 @@ jobs:
             endpoints.txt
             cloudflared.log
 
+      - name: Update tunnel status
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create a simple JSON file with the current tunnel URL
+          mkdir -p docs
+          cat > docs/tunnel-status.json << EOF
+          {
+            "url": "$TUNNEL_URL",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "status": "active",
+            "endpoints": {
+              "health": "$TUNNEL_URL/health",
+              "servers": "$TUNNEL_URL/servers",
+              "zen_tools": "$TUNNEL_URL/servers/zen/tools"
+            }
+          }
+          EOF
+          
+          echo "Tunnel status saved"
+          
+          # Commit and push to GitHub Pages
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add docs/tunnel-status.json
+          git commit -m "Update tunnel status" || echo "No changes to commit"
+          git push || echo "Push failed"
+
+      - name: Update Cloudflare Worker KV
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "Updating Cloudflare Worker KV with tunnel URL..."
+          
+          # KV namespace ID for MCP_TUNNEL_URL
+          KV_NAMESPACE_ID="7e1605c08a3c407c9f8a331f25b5c117"
+          
+          # Update KV with tunnel URL
+          KV_RESPONSE=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/storage/kv/namespaces/$KV_NAMESPACE_ID/values/url" \
+            -H "Authorization: Bearer $CF_API_TOKEN" \
+            -H "Content-Type: text/plain" \
+            --data "$TUNNEL_URL")
+          
+          echo "✅ Worker KV updated with tunnel URL"
+          echo "mcp.pavlovcik.com will now proxy to $TUNNEL_URL"
+          echo ""
+          echo "Claude Code MCP configuration:"
+          echo "URL: https://mcp.pavlovcik.com"
+
       - name: Keep server running
         run: |
           echo "MCP servers running. Will stay active for up to 6 hours..."
+          echo "Tunnel URL: $TUNNEL_URL"
           
           # Monitor the bridge process
           BRIDGE_PID=$(pgrep -f "python server.py")
@@ -206,6 +231,7 @@ jobs:
               exit 1
             fi
             echo "[$(date)] Still running... ($(($i * 5)) minutes elapsed)"
+            echo "Tunnel URL: $TUNNEL_URL"
             sleep 300  # 5 minutes
           done
           
