@@ -181,7 +181,7 @@ app.add_middleware(
 async def startup():
     """Load MCP server configurations from environment or config file"""
     # Try to load from config file first
-    config_file = os.getenv("MCP_CONFIG", "/mcp-servers/config.json")
+    config_file = os.getenv("MCP_CONFIG", os.path.expanduser("~/mcp-servers/config.json"))
     
     if os.path.exists(config_file):
         logger.info(f"Loading configuration from {config_file}")

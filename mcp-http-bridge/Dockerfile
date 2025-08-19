@@ -16,7 +16,8 @@ COPY server.py .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Create directory for MCP servers
-RUN mkdir -p /mcp-servers
+RUN mkdir -p /home/mcp/mcp-servers
+WORKDIR /home/mcp
 
 # Expose port
 EXPOSE 8080

@@ -3,9 +3,10 @@ set -e
 
 echo "Installing MCP servers..."
 
-# Create directory for MCP servers
-mkdir -p /mcp-servers
-cd /mcp-servers
+# Create directory for MCP servers in the home directory
+MCP_DIR="$HOME/mcp-servers"
+mkdir -p "$MCP_DIR"
+cd "$MCP_DIR"
 
 # Install Zen MCP Server
 echo "Installing Zen MCP Server..."
@@ -23,14 +24,14 @@ npm install -g @modelcontextprotocol/server-fetch
 # Add more MCP servers here...
 
 # Create a configuration file for the bridge
-cat > /mcp-servers/config.json << EOF
+cat > "$MCP_DIR/config.json" << EOF
 {
   "servers": [
     {
       "name": "zen",
-      "command": "/mcp-servers/zen-mcp-server/.zen_venv/bin/python",
-      "args": ["/mcp-servers/zen-mcp-server/server.py"],
-      "cwd": "/mcp-servers/zen-mcp-server"
+      "command": "$MCP_DIR/zen-mcp-server/.zen_venv/bin/python",
+      "args": ["$MCP_DIR/zen-mcp-server/server.py"],
+      "cwd": "$MCP_DIR/zen-mcp-server"
     },
     {
       "name": "fetch",
