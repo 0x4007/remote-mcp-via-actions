@@ -134,8 +134,9 @@ jobs:
           
           # Test the public endpoint
           echo "Testing public endpoint..."
-          # Wait a bit for tunnel to be fully ready
-          sleep 5
+          # Wait for tunnel to be fully ready and DNS to propagate
+          echo "Waiting for tunnel DNS to propagate..."
+          sleep 15
           
           # Try to access the endpoint with error handling
           HEALTH_RESPONSE=$(curl -s --max-time 10 $TUNNEL_URL/health 2>&1 || true)
