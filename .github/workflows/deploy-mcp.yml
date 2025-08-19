@@ -223,22 +223,23 @@ jobs:
 
       - name: Keep server running
         run: |
-          echo "MCP servers running. Will stay active for up to 6 hours..."
+          echo "MCP servers running. Server will auto-shutdown after 1 hour of inactivity..."
           echo "Tunnel URL: $TUNNEL_URL"
           
           # Monitor the bridge process
           BRIDGE_PID=$(pgrep -f "python server.py")
           
-          # Sleep for 5 hours 50 minutes, checking every 5 minutes
-          for i in {1..70}; do
-            if ! kill -0 $BRIDGE_PID 2>/dev/null; then
-              echo "⚠️ Bridge process died! Logs:"
-              cat mcp-http-bridge/bridge.log
-              exit 1
+          # Keep checking if the process is alive
+          while kill -0 $BRIDGE_PID 2>/dev/null; do
+            # Check health endpoint to see remaining time
+            HEALTH_RESPONSE=$(curl -s http://localhost:8080/health 2>/dev/null || echo "{}")
+            if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
+              REMAINING=$(echo "$HEALTH_RESPONSE" | jq -r '.inactivity.remaining_seconds // 0')
+              INACTIVE=$(echo "$HEALTH_RESPONSE" | jq -r '.inactivity.inactive_seconds // 0')
+              echo "[$(date)] Server active. Inactive for ${INACTIVE}s, ${REMAINING}s until auto-shutdown"
             fi
-            echo "[$(date)] Still running... ($(($i * 5)) minutes elapsed)"
-            echo "Tunnel URL: $TUNNEL_URL"
-            sleep 300  # 5 minutes
+            
+            sleep 60  # Check every minute
           done
           
-          echo "Shutting down after timeout"
+          echo "Server has shut down"
