@@ -90,8 +90,14 @@ jobs:
           EOF
           
           # Create credentials file from token
-          # The token is already a JSON string, not base64 encoded
-          echo '${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}' > ~/.cloudflared/38da4b0b-410a-4e88-9eb5-4d800d4c2988.json
+          # Cloudflared expects a JSON file with specific structure
+          cat > ~/.cloudflared/38da4b0b-410a-4e88-9eb5-4d800d4c2988.json << EOF
+          {
+            "AccountTag": "3075108016c07e677f6bf7128201ce79",
+            "TunnelSecret": "${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}",
+            "TunnelID": "38da4b0b-410a-4e88-9eb5-4d800d4c2988"
+          }
+          EOF
 
       - name: Start Cloudflare Tunnel
         run: |
