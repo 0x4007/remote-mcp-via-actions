@@ -93,6 +93,10 @@ jobs:
             exit 1
           fi
           
+          # Show tunnel status
+          echo "Tunnel process is running. Checking logs..."
+          tail -20 cloudflared.log
+          
           # Set the known URL
           TUNNEL_URL="https://mcp.pavlovcik.com"
           echo "TUNNEL_URL=$TUNNEL_URL" >> $GITHUB_ENV
@@ -124,11 +128,22 @@ jobs:
           EOF
           
           # Test the public endpoint
-          if curl -s $TUNNEL_URL/health > /dev/null 2>&1; then
+          echo "Testing public endpoint..."
+          HEALTH_RESPONSE=$(curl -s $TUNNEL_URL/health)
+          
+          # Check if response is JSON
+          if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
             echo "✅ Public endpoint is working!"
-            curl -s $TUNNEL_URL/health | jq
+            echo "$HEALTH_RESPONSE" | jq
           else
             echo "❌ Public endpoint test failed!"
+            echo "Response was not JSON. Got:"
+            echo "$HEALTH_RESPONSE"
+            
+            # Check cloudflared logs
+            echo ""
+            echo "Cloudflared logs:"
+            tail -50 cloudflared.log
             exit 1
           fi
 
