@@ -43,9 +43,13 @@ jobs:
         run: |
           # Export environment variables needed by MCP servers
           export OPENROUTER_API_KEY=${{ secrets.OPENROUTER_TOKEN }}
+          export GITHUB_SHA=${{ github.sha }}
+          export DEPLOYMENT_VERSION="${{ github.sha }}"
+          export DEPLOYMENT_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           
           # Start the bridge server
           echo "Starting MCP HTTP Bridge..."
+          echo "Deployment version: ${GITHUB_SHA:0:8}"
           nohup python server.py > bridge.log 2>&1 &
           BRIDGE_PID=$!
           echo "Bridge started with PID: $BRIDGE_PID"
@@ -118,6 +122,8 @@ jobs:
           echo "Custom domain will be available at:"
           echo "https://mcp.pavlovcik.com"
           echo "(DNS propagation may take a few minutes)"
+          echo ""
+          echo "Deployment version: ${{ github.sha }}"
           echo "==================================="
           echo ""
           echo "Available endpoints:"

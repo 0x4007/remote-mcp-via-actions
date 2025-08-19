@@ -220,7 +220,10 @@ async def health():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "servers": list(bridge.servers.keys())
+        "servers": list(bridge.servers.keys()),
+        "version": os.getenv("DEPLOYMENT_VERSION", "unknown"),
+        "commit": os.getenv("GITHUB_SHA", "unknown")[:8],
+        "deployed_at": os.getenv("DEPLOYMENT_TIME", "unknown")
     }
 
 @app.get("/servers")
