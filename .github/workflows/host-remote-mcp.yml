@@ -77,31 +77,33 @@ jobs:
         env:
           TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
         run: |
-          echo "Starting Cloudflare named tunnel..."
-          # Use the tunnel token without --url (ingress rules are in cloudflare config)
-          nohup cloudflared tunnel --no-autoupdate run --token "$TUNNEL_TOKEN" > cloudflared.log 2>&1 &
+          echo "Starting Cloudflare tunnel..."
+          # Try quick tunnel first to ensure service works
+          echo "Using quick tunnel for testing..."
+          nohup cloudflared tunnel --no-autoupdate --url http://localhost:8080 > cloudflared.log 2>&1 &
           TUNNEL_PID=$!
           echo "Cloudflare tunnel starting with PID: $TUNNEL_PID"
           
-          # Wait for tunnel to connect
-          echo "Waiting for tunnel connection..."
+          # Wait for tunnel URL
+          echo "Waiting for tunnel URL..."
           for i in {1..30}; do
-            if grep -q "Registered tunnel connection" cloudflared.log; then
-              echo "✅ Tunnel connected!"
+            if grep -q "https://.*\.trycloudflare\.com" cloudflared.log; then
+              echo "✅ Tunnel URL found!"
               break
             fi
             echo "Waiting... ($i/30)"
             sleep 2
           done
           
-          # Check for errors
-          if grep -q "error" cloudflared.log; then
-            echo "⚠️ Errors detected in cloudflared logs:"
-            grep -i error cloudflared.log || true
+          # Extract the tunnel URL
+          TUNNEL_URL=$(grep -o 'https://[^[:space:]]*\.trycloudflare\.com' cloudflared.log | head -1)
+          
+          if [ -z "$TUNNEL_URL" ]; then
+            echo "❌ Failed to get tunnel URL"
+            cat cloudflared.log
+            exit 1
           fi
           
-          # Set the tunnel URL
-          TUNNEL_URL="https://mcp.pavlovcik.com"
           echo "TUNNEL_URL=$TUNNEL_URL" >> $GITHUB_ENV
           echo "✅ Tunnel established at: $TUNNEL_URL"
           
