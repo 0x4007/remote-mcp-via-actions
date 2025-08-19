@@ -32,3 +32,19 @@ logs/
 # MCP specific
 zen-mcp-server/
 mcp.log
+
+# Tunnel artifacts
+tunnel-token.txt
+test-tunnel-token.txt
+tunnel_url.txt
+endpoints.txt
+cloudflared.log
+local-tunnel.log
+
+# GitHub Pages
+docs/_site/
+docs/.jekyll-cache/
+docs/tunnel-status.json
+
+# Local scripts
+*.local.sh

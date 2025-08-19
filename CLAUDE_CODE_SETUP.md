@@ -41,7 +41,7 @@ start-mcp() {
     echo "🚀 Starting MCP server..."
     
     # Start the workflow
-    gh workflow run -R 0x4007/remote-mcp-via-actions host-remote-mcp-quick.yml
+    gh workflow run -R 0x4007/remote-mcp-via-actions deploy-mcp.yml
     
     echo "⏳ Waiting for deployment (this takes ~2 minutes)..."
     
@@ -49,7 +49,7 @@ start-mcp() {
     sleep 10
     
     # Get the latest run ID
-    RUN_ID=$(gh run list -R 0x4007/remote-mcp-via-actions --workflow="host-remote-mcp-quick.yml" --limit 1 --json databaseId -q '.[0].databaseId')
+    RUN_ID=$(gh run list -R 0x4007/remote-mcp-via-actions --workflow="deploy-mcp.yml" --limit 1 --json databaseId -q '.[0].databaseId')
     
     if [ -n "$RUN_ID" ]; then
         echo "📊 Workflow started with ID: $RUN_ID"
@@ -99,7 +99,7 @@ echo "⏳ Waiting for deployment (this takes ~2 minutes)..."
 sleep 10
 
 # Get the latest run ID
-RUN_ID=$(gh run list -R 0x4007/remote-mcp-via-actions --workflow="host-remote-mcp-quick.yml" --limit 1 --json databaseId -q '.[0].databaseId')
+RUN_ID=$(gh run list -R 0x4007/remote-mcp-via-actions --workflow="deploy-mcp.yml" --limit 1 --json databaseId -q '.[0].databaseId')
 
 if [ -n "$RUN_ID" ]; then
     echo "📊 Workflow started with ID: $RUN_ID"

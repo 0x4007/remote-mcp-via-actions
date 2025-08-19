@@ -1,5 +1,0 @@
-MCP Server Endpoints:
-Base URL: https://cook-internationally-barbados-trinity.trycloudflare.com
-Health: https://cook-internationally-barbados-trinity.trycloudflare.com/health
-Servers: https://cook-internationally-barbados-trinity.trycloudflare.com/servers
-Zen tools: https://cook-internationally-barbados-trinity.trycloudflare.com/servers/zen/tools
