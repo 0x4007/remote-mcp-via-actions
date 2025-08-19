@@ -19,7 +19,10 @@ else
     cd zen-mcp-server
 fi
 chmod +x run-server.sh
-./run-server.sh || true
+# Run setup non-interactively
+export CI=true
+export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-dummy}"
+./run-server.sh || echo "Note: run-server.sh returned non-zero exit code (this is expected in CI)"
 cd ..
 
 # Install other MCP servers as needed

@@ -23,4 +23,4 @@ WORKDIR /home/mcp
 EXPOSE 8080
 
 # Run the bridge server
-CMD ["python", "server.py"]
+CMD ["python", "/app/server.py"]
