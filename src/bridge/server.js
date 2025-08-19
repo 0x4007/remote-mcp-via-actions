@@ -192,7 +192,7 @@ class MCPProxyServer extends EventEmitter {
     this.setupRoutes();
 
     setInterval(() => this.cleanupIdleConnections(), 60000);
-    
+
     // Start inactivity check
     this.startInactivityCheck();
   }
@@ -203,7 +203,7 @@ class MCPProxyServer extends EventEmitter {
       this.lastRequestTime = Date.now();
       next();
     });
-    
+
     this.app.use((req, res, next) => {
       req.sessionId = req.headers['x-session-id'] ||
         req.headers['x-client-id'] ||
@@ -353,7 +353,7 @@ class MCPProxyServer extends EventEmitter {
     this.app.post('/mcp', async (req, res) => {
       // For now, use the first available server or 'zen' if available
       const serverName = this.mcpServers.has('zen') ? 'zen' : Array.from(this.mcpServers.keys())[0];
-      
+
       if (!serverName) {
         return res.status(503).json({
           jsonrpc: '2.0',
@@ -364,7 +364,7 @@ class MCPProxyServer extends EventEmitter {
           }
         });
       }
-      
+
       const server = this.mcpServers.get(serverName);
       if (!server || !server.process) {
         return res.status(503).json({
@@ -376,7 +376,7 @@ class MCPProxyServer extends EventEmitter {
           }
         });
       }
-      
+
       try {
         const result = await this.forwardRequest(server, req);
         res.json({
@@ -395,22 +395,22 @@ class MCPProxyServer extends EventEmitter {
         });
       }
     });
-    
+
     // SSE endpoint for MCP protocol
     this.app.get('/mcp', async (req, res) => {
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
-      
+
       // Send initial ping
       res.write('event: ping\ndata: {"type":"ping"}\n\n');
-      
+
       // Keep connection alive with periodic pings
       const pingInterval = setInterval(() => {
         res.write('event: ping\ndata: {"type":"ping"}\n\n');
       }, 30000);
-      
+
       req.on('close', () => {
         clearInterval(pingInterval);
       });
@@ -591,20 +591,48 @@ class MCPProxyServer extends EventEmitter {
 
   async discoverMCPServers(dir = this.searchRoot, depth = 0) {
     // First, try to load from config.json if it exists
-    const configPath = path.join(__dirname, 'config.json');
-    try {
-      const configContent = await fs.readFile(configPath, 'utf8');
-      const config = JSON.parse(configContent);
-      
+    // In GitHub Actions, check for the config created by install-servers.sh
+    const possibleConfigs = [
+      path.join(process.env.HOME || '', 'mcp-servers', 'config.json'),
+      path.join(__dirname, 'config.json')
+    ];
+    
+    let configPath = null;
+    let configContent = null;
+    
+    for (const configFile of possibleConfigs) {
+      try {
+        configContent = await fs.readFile(configFile, 'utf8');
+        configPath = configFile;
+        console.log(`Found config at: ${configFile}`);
+        break;
+      } catch (error) {
+        // Continue to next config
+      }
+    }
+    
+    if (configContent) {
+      try {
+        const config = JSON.parse(configContent);
+
       if (config.servers && Array.isArray(config.servers)) {
-        console.log(`Loading servers from config.json`);
+        console.log(`Loading ${config.servers.length} servers from config.json`);
         for (const serverConfig of config.servers) {
-          // Resolve paths relative to project root
-          const serverPath = path.resolve(__dirname, '../..', serverConfig.path || serverConfig.code_dir || '.');
+          // Handle both old and new config formats
+          const serverName = serverConfig.name;
+          const serverPath = serverConfig.cwd || path.resolve(__dirname, '../..', serverConfig.path || serverConfig.code_dir || '.');
           
-          this.mcpServers.set(serverConfig.name, {
-            ...serverConfig,
+          // Convert the GitHub Actions config format to our format
+          const mcpConfig = {
+            name: serverName,
+            server: serverName,
+            type: serverConfig.type || 'stdout',
+            command: serverConfig.command,
+            args: serverConfig.args || [],
+            env: serverConfig.env || {},
             path: serverPath,
+            cwd: serverConfig.cwd,
+            code_dir: serverConfig.code_dir,
             manifestPath: configPath,
             process: null,
             port: null,
@@ -613,13 +641,15 @@ class MCPProxyServer extends EventEmitter {
             restarts: 0,
             useMcpSdk: serverConfig.useMcpSdk !== false,
             initialized: false
-          });
+          };
+          
+          this.mcpServers.set(serverName, mcpConfig);
           
           if (serverConfig.endpoint) {
-            this.endpoints.set(serverConfig.endpoint, serverConfig.name);
+            this.endpoints.set(serverConfig.endpoint, serverName);
           }
           
-          console.log(`Configured MCP server: ${serverConfig.name} (${serverConfig.type}) at ${serverPath}`);
+          console.log(`Configured MCP server: ${serverName} (${mcpConfig.type}) at ${serverPath}`);
         }
         return; // Skip directory scanning if config.json is found
       }
@@ -627,7 +657,7 @@ class MCPProxyServer extends EventEmitter {
       console.log(`No config.json found or error loading it: ${error.message}`);
       console.log(`Falling back to directory scanning...`);
     }
-    
+
     // Fall back to directory scanning
     if (depth > 10) {
       console.warn(`Max depth reached at ${dir}`);
@@ -701,7 +731,7 @@ class MCPProxyServer extends EventEmitter {
   async startServer(name, server) {
     try {
       console.log(`Starting ${name}...`);
-  
+
       if (server.type === 'stdout') {
         await this.startStdoutServer(server);
       } else if (server.type === 'streamableHTTP' || server.type === 'http') {
@@ -710,18 +740,18 @@ class MCPProxyServer extends EventEmitter {
         console.error(`Unknown server type for ${name}: ${server.type}`);
         return;
       }
-  
+
       server.startTime = new Date();
-  
+
       if (server.useMcpSdk && server.type !== 'stdout') {
         this.connectionPools.set(name, new Map());
       }
-  
+
       await this.retryOperation(() => this.discoverTools(server), this.maxRetries);
-  
+
       console.log(`✓ ${name} started successfully with ${server.tools.length} tools`);
       this.emit('serverStarted', { name, server });
-  
+
     } catch (error) {
       console.error(`✗ Failed to start ${name}:`, error.message);
       this.emit('serverError', { name, error });
@@ -730,48 +760,49 @@ class MCPProxyServer extends EventEmitter {
 
   async startStdoutServer(server) {
     return new Promise((resolve, reject) => {
-      const cwd = server.code_dir ? path.join(server.path, server.code_dir) : server.path;
-  
+      // Use cwd if explicitly provided (GitHub Actions config), otherwise derive from path and code_dir
+      const cwd = server.cwd || (server.code_dir ? path.join(server.path, server.code_dir) : server.path);
+
       const env = {
         ...process.env,
         ...(server.env || {}),
         MCP_MODE: 'stdio',
         MCP_SERVER_NAME: server.server
       };
-  
+
       server.process = spawn(server.command, server.args || [], { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
-  
+
       server.stdout = server.process.stdout;
       server.stdin = server.process.stdin;
-  
+
       server.responseBuffer = '';
       server.responseHandlers = new Map();
-  
+
       server.stdout.on('data', (data) => this.handleStdoutData(server, data));
-  
+
       server.process.stderr.on('data', (data) => {
         const message = data.toString();
         if (message.trim()) console.error(`[${server.server}] ${message}`);
       });
-  
+
       server.process.on('exit', (code, signal) => {
         console.log(`[${server.server}] Process exited (code: ${code}, signal: ${signal})`);
         this.handleServerExit(server.server);
       });
-  
+
       // **FIX: Wait for the "ready" signal here, immediately after spawning**
       const timeout = setTimeout(() => {
         reject(new Error(`Timeout waiting for ${server.server} to be ready.`));
       }, 30000);
-  
+
       const onReady = (data) => {
         if (data.toString().includes('starting Youtube Transcript MCP server')) {
           clearTimeout(timeout);
-          server.stdout.removeListener('data', onReady); 
+          server.stdout.removeListener('data', onReady);
           resolve();
         }
       };
-  
+
       if (server.server === 'youtubeTranscriptMCP') {
         server.stdout.on('data', onReady);
       } else {
@@ -1278,7 +1309,7 @@ async forwardRequest(server, req) {
     this.inactivityCheckInterval = setInterval(() => {
       const now = Date.now();
       const inactiveTime = now - this.lastRequestTime;
-      
+
       if (inactiveTime >= this.inactivityTimeout) {
         console.log(`Inactivity timeout reached (${Math.floor(inactiveTime / 1000)}s). Shutting down...`);
         this.stop().then(() => {
@@ -1293,12 +1324,12 @@ async forwardRequest(server, req) {
 
   async stop() {
     console.log('Stopping all MCP servers...');
-    
+
     // Clear inactivity check
     if (this.inactivityCheckInterval) {
       clearInterval(this.inactivityCheckInterval);
     }
-    
+
     for (const [serverName, pool] of this.connectionPools) {
       console.log(`Closing ${pool.size} connections for ${serverName}...`);
       for (const [sessionId, connection] of pool) {

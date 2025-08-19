@@ -51,3 +51,4 @@ docs/.jekyll-cache/
 .swarm/
 .claude-flow/
 node_modules/
+server.pid

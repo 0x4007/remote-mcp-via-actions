@@ -1,15 +1,4 @@
 {
-  "servers": [
-    {
-      "name": "zen",
-      "server": "zen",
-      "type": "stdout",
-      "command": "python3",
-      "args": ["server.py"],
-      "code_dir": ".",
-      "path": "../../zen-mcp-server",
-      "endpoint": "/servers/zen",
-      "useMcpSdk": true
-    }
-  ]
+  "servers": [],
+  "_comment": "Servers will be configured dynamically in GitHub Actions via install-servers.sh"
 }
