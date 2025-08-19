@@ -144,7 +144,7 @@ class MCPBridgeServer:
     def __init__(self):
         self.servers: Dict[str, MCPServerProcess] = {}
         self.last_request_time = time.time()
-        self.inactivity_timeout = 3600  # 1 hour in seconds
+        self.inactivity_timeout = 900  # 15 minutes in seconds
         self.shutdown_task: Optional[asyncio.Task] = None
         
     def add_server(self, config: MCPServerConfig):
