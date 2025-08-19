@@ -1,0 +1,64 @@
+name: Host Remote Zen MCP
+
+on:
+  workflow_dispatch:
+
+jobs:
+  host-mcp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # Max 6 hours (360 minutes)
+
+    steps:
+      - name: Checkout repository (optional if no custom code needed)
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Clone Zen MCP Server repository
+        run: git clone https://github.com/BeehiveInnovations/zen-mcp-server.git
+
+      - name: Install Zen MCP dependencies
+        working-directory: zen-mcp-server
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; else echo "No requirements.txt found; assuming dependencies are handled internally."; fi
+
+      - name: Configure Zen MCP environment
+        working-directory: zen-mcp-server
+        run: |
+          # Configure Zen MCP with OpenRouter API key
+          echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_TOKEN }}" >> .env
+
+      - name: Start Zen MCP server in background
+        working-directory: zen-mcp-server
+        run: |
+          source venv/bin/activate
+          # Assuming Zen MCP is a FastAPI/uvicorn app; replace with actual start command
+          # From docs/community, it's often: uvicorn zen_mcp.server:app --host 0.0.0.0 --port 8080
+          nohup uvicorn zen_mcp.server:app --host 0.0.0.0 --port 8080 > mcp.log 2>&1 &
+          sleep 15  # Give time for server to start; check logs if issues
+          echo "Zen MCP server started on port 8080"
+
+      - name: Set up Cloudflare Tunnel
+        uses: AnimMouse/setup-cloudflared@v1
+        with:
+          tunnel-token: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+          # The action runs 'cloudflared tunnel run --token ...' which connects to your pre-configured tunnel
+          # No args needed for --url since ingress is set in Cloudflare (points to localhost:8080)
+
+      - name: Display endpoint info
+        run: |
+          # Your static URL is the one configured in Cloudflare (e.g., https://mcp.yourdomain.com)
+          # It will be live once the tunnel connects; check Action logs for cloudflared output if issues
+          echo "Zen MCP is now exposed at your configured Cloudflare domain (e.g., https://mcp.yourdomain.com)"
+
+      - name: Keep server running for up to 6 hours
+        run: |
+          # Sleep for 5 hours 50 minutes to stay under 6-hour limit (accounting for startup time)
+          sleep 21000
+          echo "Server shutting down after timeout"
