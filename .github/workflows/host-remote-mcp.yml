@@ -83,12 +83,13 @@ jobs:
           
           # Wait for tunnel URL
           echo "Waiting for tunnel URL..."
-          for i in {1..20}; do
-            if grep -q "trycloudflare.com" cloudflared.log; then
+          for i in {1..30}; do
+            if grep -q "Your quick Tunnel has been created" cloudflared.log; then
+              echo "Tunnel created!"
               break
             fi
-            echo "Waiting... ($i/20)"
-            sleep 2
+            echo "Waiting... ($i/30)"
+            sleep 1
           done
           
           # Extract the tunnel URL
