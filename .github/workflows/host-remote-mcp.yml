@@ -72,37 +72,51 @@ jobs:
 
       - name: Set up Cloudflare Tunnel
         uses: AnimMouse/setup-cloudflared@v1
-        with:
-          cloudflare_tunnel_credential: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
 
       - name: Start Cloudflare Tunnel
         run: |
           echo "Starting Cloudflare tunnel..."
-          nohup cloudflared tunnel run --token ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }} > cloudflared.log 2>&1 &
-          echo "Cloudflare tunnel starting..."
+          # Use a quick tunnel that doesn't require authentication
+          nohup cloudflared tunnel --no-autoupdate --url http://localhost:8080 > cloudflared.log 2>&1 &
+          TUNNEL_PID=$!
+          echo "Cloudflare tunnel starting with PID: $TUNNEL_PID"
           
-          # Wait for tunnel to establish
+          # Wait for tunnel to establish and extract URL
+          echo "Waiting for tunnel to establish..."
           sleep 10
+          
+          # Extract the tunnel URL from logs
+          TUNNEL_URL=$(grep -o 'https://.*\.trycloudflare.com' cloudflared.log | head -1)
+          if [ -z "$TUNNEL_URL" ]; then
+            echo "❌ Failed to get tunnel URL!"
+            echo "Cloudflared logs:"
+            cat cloudflared.log
+            exit 1
+          fi
+          
+          echo "TUNNEL_URL=$TUNNEL_URL" >> $GITHUB_ENV
+          echo "✅ Tunnel established at: $TUNNEL_URL"
 
       - name: Display endpoint info
         run: |
           echo "==================================="
           echo "MCP servers are now accessible at:"
-          echo "https://mcp.pavlovcik.com"
+          echo "$TUNNEL_URL"
           echo "==================================="
           echo ""
           echo "Available endpoints:"
-          echo "  Health: https://mcp.pavlovcik.com/health"
-          echo "  Servers: https://mcp.pavlovcik.com/servers"
-          echo "  Zen tools: https://mcp.pavlovcik.com/servers/zen/tools"
+          echo "  Health: $TUNNEL_URL/health"
+          echo "  Servers: $TUNNEL_URL/servers"
+          echo "  Zen tools: $TUNNEL_URL/servers/zen/tools"
           echo ""
           
           # Test the public endpoint
-          sleep 5
-          if curl -s https://mcp.pavlovcik.com/health > /dev/null 2>&1; then
+          if curl -s $TUNNEL_URL/health > /dev/null 2>&1; then
             echo "✅ Public endpoint is working!"
+            curl -s $TUNNEL_URL/health | jq
           else
-            echo "⚠️  Public endpoint may still be initializing..."
+            echo "❌ Public endpoint test failed!"
+            exit 1
           fi
 
       - name: Keep server running
