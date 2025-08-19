@@ -94,6 +94,21 @@ jobs:
             sleep 2
           done
           
+          # Give named tunnel time to stabilize
+          echo "Allowing tunnel to stabilize (30s)..."
+          sleep 30
+          
+          # Verify all tunnel connections are established
+          echo "Verifying tunnel connections..."
+          CONNECTION_COUNT=$(grep -c "Registered tunnel connection" cloudflared.log || echo "0")
+          echo "Active connections: $CONNECTION_COUNT"
+          
+          if [ "$CONNECTION_COUNT" -lt 4 ]; then
+            echo "⚠️ Warning: Expected 4 connections, found $CONNECTION_COUNT"
+            echo "Waiting additional 20s for remaining connections..."
+            sleep 20
+          fi
+          
           # Check for errors
           if grep -q "error" cloudflared.log; then
             echo "⚠️ Errors detected in cloudflared logs:"
@@ -132,9 +147,9 @@ jobs:
           
           # Test the public endpoint
           echo "Testing public endpoint..."
-          # Wait for tunnel to be fully ready
-          echo "Waiting for tunnel to be ready..."
-          sleep 10
+          # Additional wait for DNS propagation
+          echo "Waiting for DNS propagation..."
+          sleep 15
           
           # Try to access the endpoint with error handling
           HEALTH_RESPONSE=$(curl -s --max-time 10 $TUNNEL_URL/health 2>&1 || true)
@@ -144,9 +159,9 @@ jobs:
             echo "✅ Public endpoint is working!"
             echo "$HEALTH_RESPONSE" | jq
           else
-            echo "⚠️ Public endpoint test failed. Retrying..."
-            sleep 5
-            HEALTH_RESPONSE=$(curl -s --max-time 10 $TUNNEL_URL/health 2>&1 || true)
+            echo "⚠️ Public endpoint test failed. Retrying with longer timeout..."
+            sleep 10
+            HEALTH_RESPONSE=$(curl -s --max-time 30 $TUNNEL_URL/health 2>&1 || true)
             
             if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
               echo "✅ Public endpoint is working on retry!"
