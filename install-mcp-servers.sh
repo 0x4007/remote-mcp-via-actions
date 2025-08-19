@@ -10,8 +10,14 @@ cd "$MCP_DIR"
 
 # Install Zen MCP Server
 echo "Installing Zen MCP Server..."
-git clone https://github.com/BeehiveInnovations/zen-mcp-server.git
-cd zen-mcp-server
+if [ -d "zen-mcp-server" ]; then
+    echo "Zen MCP Server already exists, updating..."
+    cd zen-mcp-server
+    git pull
+else
+    git clone https://github.com/BeehiveInnovations/zen-mcp-server.git
+    cd zen-mcp-server
+fi
 chmod +x run-server.sh
 ./run-server.sh || true
 cd ..
