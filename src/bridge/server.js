@@ -277,8 +277,9 @@ app.post('/mcp', validateOrigin, validateProtocolVersion, validateSession, async
     console.log('Received MCP request:', JSON.stringify(req.body, null, 2));
 
     // Validate Accept header - be permissive for compatibility
-    const accept = req.get('Accept') || '';
-    if (!accept.includes('application/json') && !accept.includes('text/event-stream')) {
+    // Allow missing Accept header for maximum compatibility
+    const accept = req.get('Accept') || 'application/json';
+    if (accept && accept !== '*/*' && !accept.includes('application/json') && !accept.includes('text/event-stream')) {
       return res.status(406).json({
         jsonrpc: '2.0',
         id: req.body.id,
