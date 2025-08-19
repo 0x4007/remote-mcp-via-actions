@@ -1,4 +1,14 @@
 {
-  "servers": [],
-  "_comment": "Servers will be configured dynamically in GitHub Actions via install-servers.sh"
+  "servers": [
+    {
+      "name": "kukapay-mcp",
+      "type": "streamableHTTP",
+      "endpoint": "/mcp",
+      "port": 443,
+      "host": "test.kukapay.com",
+      "path": "/api/mcp",
+      "useMcpSdk": true
+    }
+  ],
+  "_comment": "Proxy configuration for https://test.kukapay.com/api/mcp streamable HTTP MCP server"
 }
