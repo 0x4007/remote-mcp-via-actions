@@ -76,28 +76,29 @@ jobs:
       - name: Start Cloudflare Tunnel
         run: |
           echo "Starting Cloudflare tunnel..."
-          # Use a quick tunnel that doesn't require authentication
-          nohup cloudflared tunnel --no-autoupdate --url http://localhost:8080 > cloudflared.log 2>&1 &
+          # Use the named tunnel with token
+          nohup cloudflared tunnel --no-autoupdate run --token ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }} --url http://localhost:8080 > cloudflared.log 2>&1 &
           TUNNEL_PID=$!
           echo "Cloudflare tunnel starting with PID: $TUNNEL_PID"
           
-          # Wait for tunnel to establish and extract URL
+          # Wait for tunnel to establish
           echo "Waiting for tunnel to establish..."
-          sleep 10
+          sleep 15
           
-          # Extract the tunnel URL from logs
-          TUNNEL_URL=$(grep -o 'https://.*\.trycloudflare.com' cloudflared.log | head -1)
-          if [ -z "$TUNNEL_URL" ]; then
-            echo "❌ Failed to get tunnel URL!"
+          # Check if tunnel is running
+          if ! kill -0 $TUNNEL_PID 2>/dev/null; then
+            echo "❌ Cloudflare tunnel failed to start!"
             echo "Cloudflared logs:"
             cat cloudflared.log
             exit 1
           fi
           
+          # Set the known URL
+          TUNNEL_URL="https://mcp.pavlovcik.com"
           echo "TUNNEL_URL=$TUNNEL_URL" >> $GITHUB_ENV
           echo "✅ Tunnel established at: $TUNNEL_URL"
           
-          # Also save to a file for debugging
+          # Save to file
           echo "$TUNNEL_URL" > tunnel_url.txt
 
       - name: Display endpoint info
