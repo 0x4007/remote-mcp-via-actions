@@ -293,6 +293,84 @@ async def list_servers():
         ]
     }
 
+@app.get("/mcp")
+async def mcp_sse_endpoint():
+    """Standard MCP HTTP transport SSE endpoint for server-initiated messages"""
+    # For now, we'll use the first available server (zen)
+    server_name = "zen"
+    
+    if server_name not in bridge.servers:
+        raise HTTPException(status_code=503, detail=f"Server '{server_name}' not available")
+    
+    server = await bridge.get_server(server_name)
+    
+    async def event_generator():
+        """Generate SSE events from MCP server"""
+        try:
+            while True:
+                # This is a placeholder - in a real implementation,
+                # we'd stream events from the MCP server
+                await asyncio.sleep(30)
+                yield {
+                    "event": "ping",
+                    "data": json.dumps({"type": "ping"})
+                }
+        except asyncio.CancelledError:
+            logger.info("SSE connection closed")
+            raise
+    
+    return EventSourceResponse(event_generator())
+
+@app.post("/mcp")
+async def mcp_endpoint(request: dict):
+    """Standard MCP HTTP transport endpoint for Claude Code"""
+    # For now, we'll use the first available server (zen)
+    # In the future, this could be made configurable
+    server_name = "zen"
+    
+    if server_name not in bridge.servers:
+        raise HTTPException(status_code=503, detail=f"Server '{server_name}' not available")
+    
+    server = await bridge.get_server(server_name)
+    
+    # Extract method and params from JSON-RPC request
+    method = request.get("method")
+    params = request.get("params", {})
+    request_id = request.get("id")
+    
+    if not method:
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {
+                "code": -32600,
+                "message": "Invalid request: method is required"
+            }
+        }
+    
+    try:
+        # Send request to MCP server
+        response = await server.send_request(method, params)
+        
+        # Ensure proper JSON-RPC response format
+        if "jsonrpc" not in response:
+            response["jsonrpc"] = "2.0"
+        if request_id is not None and "id" not in response:
+            response["id"] = request_id
+            
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error processing MCP request: {e}")
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {
+                "code": -32603,
+                "message": f"Internal error: {str(e)}"
+            }
+        }
+
 @app.post("/servers/{server_name}/request")
 async def send_request(server_name: str, request: dict):
     """Send a request to a specific MCP server"""
