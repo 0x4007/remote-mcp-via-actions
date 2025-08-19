@@ -221,7 +221,7 @@ jobs:
           echo "⚠️  This prevents breaking the service when tunnel registration fails"
 
       - name: Keep server running
-        if: env.ENDPOINT_TEST_PASSED == 'true'
+        # Always keep running, even if endpoint test fails (for debugging)
         run: |
           echo "Custom MCP Server running at: $TUNNEL_URL"
           echo "Available tools: calculate_sum, echo"
