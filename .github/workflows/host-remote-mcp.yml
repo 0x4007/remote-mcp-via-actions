@@ -38,12 +38,33 @@ jobs:
           echo "Setting up Zen MCP environment..."
           ./run-server.sh || true
           
+          # Check if server.py exists
+          if [ ! -f server.py ]; then
+            echo "server.py not found, looking for alternative startup files..."
+            ls -la
+            find . -name "*.py" -type f | head -20
+          fi
+          
           # Now start the actual server
           echo "Starting MCP server..."
           source .venv/bin/activate 2>/dev/null || source venv/bin/activate 2>/dev/null || true
           
-          # Start the server directly
-          nohup python -m zen_mcp.server > server.log 2>&1 &
+          # Start the server directly using server.py
+          if [ -f server.py ]; then
+            nohup python server.py > server.log 2>&1 &
+          else
+            # Try alternate paths
+            echo "Trying to find the correct startup script..."
+            if [ -f src/server.py ]; then
+              nohup python src/server.py > server.log 2>&1 &
+            elif [ -f zen_mcp/server.py ]; then
+              nohup python zen_mcp/server.py > server.log 2>&1 &
+            else
+              echo "Could not find server startup script!"
+              exit 1
+            fi
+          fi
+          
           SERVER_PID=$!
           echo "Server started with PID: $SERVER_PID"
           
@@ -63,7 +84,7 @@ jobs:
             echo "❌ Failed to start MCP server. Logs:"
             cat server.log
             echo "---"
-            ps aux | grep -E "python|zen_mcp" | grep -v grep
+            ps aux | grep -E "python|server" | grep -v grep
             exit 1
           fi
 
