@@ -263,3 +263,111 @@ When continuing this debugging:
 - [ ] Test Claude Code: `claude mcp list`
 
 **Current known issue:** When server works manually but Claude Code fails, the issue is likely in the HTTP transport negotiation or session management. The server implements MCP 2025-06-18 Streamable HTTP correctly based on manual tests.
+
+
+
+--------------
+
+
+Claude Code’s "FAILED TO CONNECT" error with MCP servers usually means Claude Code cannot successfully establish or maintain the JSON-RPC communication with your MCP server. To pass the connection check, you must respond exactly as Claude expects to certain JSON-RPC protocol calls.
+
+Here is what Claude Code **sends** and what your MCP server **must respond with** to pass the check reliably:
+
+***
+
+### What Claude Code Sends (Typical Initialization Request)
+
+Claude Code starts by sending a JSON-RPC `initialize` request over HTTP POST like this:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "clientInfo": {
+      "name": "claude-code",
+      "version": "X.Y.Z"
+    },
+    "capabilities": {}
+  },
+  "id": 1
+}
+```
+
+- This is the handshake to check MCP protocol version compatibility and server presence.
+
+***
+
+### What Your MCP Server Must Respond With
+
+You MUST return a valid JSON-RPC 2.0 response with the same `"id"` and no errors, including the `protocolVersion` in the `result`:
+
+Example:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "protocolVersion": "2024-11-05",
+    "serverInfo": {
+      "name": "my-mcp-server",
+      "version": "1.0.0"
+    },
+    "capabilities": {}
+  }
+}
+```
+
+- **If your server does not respond exactly with this JSON-RPC format or with an error, Claude Code will fail to connect.**
+- The `protocolVersion` must match the version Claude sends.
+- Return HTTP status 200 along with this valid JSON.
+
+***
+
+### Common Pitfalls That Cause "FAILED TO CONNECT"
+
+- Returning non-JSON or improperly formatted JSON.
+- Returning HTTP errors or non-200 status codes.
+- Not responding to the initial `initialize` method.
+- Responding with errors or missing the matching `"id"`.
+- Server timing out or taking too long to respond.
+- JSON-RPC version missing or wrong.
+- Not implementing JSON-RPC 2.0 fully (including `jsonrpc` and `id` fields).
+- Using incompatible protocolVersion strings.
+
+***
+
+### Debugging Steps
+
+1. **Log and capture exactly what Claude sends** on the wire (request body).
+2. **Log and verify exactly what your server responds** (response body and HTTP code).
+3. Use a tool like `curl` or Postman to simulate the request Claude sends and confirm your response is exactly as above.
+4. Ensure your server responds immediately and with valid JSON.
+5. Validate your MCP server with tools like `@modelcontextprotocol/inspector` from npm that can test MCP compliance automatically.
+6. Also test with Claude Desktop, which sometimes has better MCP error logs for debugging.
+
+***
+
+If you want, I can help you create an example minimal HTTP JSON-RPC MCP server that passes this handshake and explain how to expand it to full MCP.
+
+***
+
+Summary:
+
+Claude Code sends a JSON-RPC 2.0 `initialize` request with an ID and protocolVersion. You must respond immediately with a JSON-RPC 2.0 response with the same ID, matching protocolVersion, and no errors to establish connection.
+
+If you do not follow this exactly, Claude Code will show "FAILED TO CONNECT."
+
+If you want me to help generate code or a minimal server example that passes this check, just ask!
+
+[1] https://github.com/anthropics/claude-code/issues/1611
+[2] https://github.com/anthropics/claude-code/issues/3279
+[3] https://www.arsturn.com/blog/why-is-claude-ignoring-your-mcp-prompts-a-troubleshooting-guide
+[4] https://www.reddit.com/r/ClaudeAI/comments/1h18ep6/mcp_error_could_not_connect_to_mcp_server/
+[5] https://docs.anthropic.com/en/docs/claude-code/mcp
+[6] https://www.youtube.com/watch?v=oM2dXJnD80c
+[7] https://docs.anthropic.com/en/docs/claude-code/troubleshooting
+[8] https://modelcontextprotocol.io/quickstart/user
+[9] https://mcpcat.io/guides/adding-an-mcp-server-to-claude-code/

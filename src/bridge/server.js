@@ -89,14 +89,15 @@ class MCPServer {
   async handleInitialize(params) {
     const { protocolVersion, capabilities = {}, clientInfo = {} } = params;
     
-    // Version negotiation
-    const supportedVersions = ['2025-06-18', '2025-03-26'];
+    // Version negotiation - support all common versions
+    const supportedVersions = ['2024-11-05', '2025-03-26', '2025-06-18'];
     if (!supportedVersions.includes(protocolVersion)) {
-      throw new Error(`Unsupported protocol version: ${protocolVersion}`);
+      console.warn(`Client requested unsupported version: ${protocolVersion}, will use ${protocolVersion} anyway`);
     }
 
+    // Echo back the client's protocol version for compatibility
     return {
-      protocolVersion: MCP_PROTOCOL_VERSION,
+      protocolVersion: protocolVersion || '2024-11-05',
       capabilities: {
         tools: {},
         logging: {}
@@ -194,14 +195,9 @@ const validateOrigin = (req, res, next) => {
 // Protocol version validation
 const validateProtocolVersion = (req, res, next) => {
   const protocolVersion = req.get('MCP-Protocol-Version');
-  if (protocolVersion && !['2025-06-18', '2025-03-26'].includes(protocolVersion)) {
-    return res.status(400).json({
-      jsonrpc: '2.0',
-      error: {
-        code: -32603,
-        message: `Unsupported protocol version: ${protocolVersion}`
-      }
-    });
+  // Accept all protocol versions for maximum compatibility
+  if (protocolVersion) {
+    console.log(`Client using protocol version: ${protocolVersion}`);
   }
   next();
 };
@@ -368,6 +364,7 @@ app.post('/mcp', validateOrigin, validateProtocolVersion, validateSession, async
           break;
           
         case 'initialized':
+        case 'notifications/initialized':
           // Just acknowledge the notification
           if (id === null || id === undefined) {
             return res.status(202).end();
