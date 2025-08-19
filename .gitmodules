@@ -1,0 +1,3 @@
+[submodule "lib/mcp=repo-template"]
+	path = lib/mcp=repo-template
+	url = https://github.com/0x4007/MCP-Repo-Template.git

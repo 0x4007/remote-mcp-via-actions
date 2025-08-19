@@ -48,3 +48,6 @@ docs/.jekyll-cache/
 
 # Local scripts
 *.local.sh
+.swarm/
+.claude-flow/
+node_modules/

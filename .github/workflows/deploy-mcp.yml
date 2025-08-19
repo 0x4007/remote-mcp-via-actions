@@ -12,20 +12,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install MCP HTTP Bridge dependencies
         working-directory: src/bridge
         run: |
-          pip install -r requirements.txt
+          npm install
 
       - name: Create required directories
         run: |
@@ -54,7 +49,7 @@ jobs:
           # Start the bridge server
           echo "Starting MCP HTTP Bridge..."
           echo "Deployment version: ${GITHUB_SHA:0:8}"
-          nohup python server.py > bridge.log 2>&1 &
+          nohup node server.js > bridge.log 2>&1 &
           BRIDGE_PID=$!
           echo "Bridge started with PID: $BRIDGE_PID"
           
@@ -231,7 +226,7 @@ jobs:
           echo "Tunnel URL: $TUNNEL_URL"
           
           # Monitor the bridge process
-          BRIDGE_PID=$(pgrep -f "python server.py")
+          BRIDGE_PID=$(pgrep -f "node server.js")
           
           # Keep checking if the process is alive
           while kill -0 $BRIDGE_PID 2>/dev/null; do
