@@ -4,15 +4,22 @@ Proof of concept demonstrating HTTP-based MCP (Model Context Protocol) server ac
 
 ## What it does
 
-This POC provides HTTP streamable MCP servers that proxy requests to `test.kukapay.com/api/mcp`:
+This POC provides **MCP Streamable HTTP** compliant servers that proxy requests to `test.kukapay.com/api/mcp`:
 
-> **MCP Specification**: This implementation follows the [Model Context Protocol specification](docs/mcp-spec/docs/specification/). See the [official MCP documentation](docs/mcp-spec/docs/) for complete protocol details.
+> **MCP Specification**: This implementation follows the [Model Context Protocol Streamable HTTP transport (2025-03-26)](docs/mcp-spec/docs/specification/2025-03-26/basic/transports.mdx). See the [official MCP documentation](docs/mcp-spec/docs/) for complete protocol details.
 
+### ✅ **Streamable HTTP Transport Features**
+- **Single MCP endpoint** supporting GET, POST, and DELETE methods
+- **Accept header validation** (requires `application/json, text/event-stream`)
+- **Dual response modes**: JSON responses and SSE streaming
+- **Session management** with `Mcp-Session-Id` header support
+- **Security features**: Origin validation for DNS rebinding protection
+- **Server-initiated messages** via GET endpoint (when supported by downstream)
+
+### 🚀 **Deployment Options**
 - **Cloudflare Worker** at `mcp.pavlovcik.com` - Production deployment
 - **Local Express.js server** on port 8081 - Development and testing
-- Full Server-Sent Events (SSE) streaming support
-- CORS-enabled for web client access
-- Compatible with Claude Code CLI and other MCP clients
+- **GitHub Actions** - Automated deployment and testing
 
 ## Quick Start
 
@@ -34,23 +41,46 @@ claude mcp add --transport http kukapay-local http://localhost:8081/mcp
 
 ## Testing
 
-The proxy servers provide access to a calculate_sum tool for testing:
+### Comprehensive Test Suite
+
+Run the complete **Streamable HTTP compliance test** suite:
+
+```bash
+# Test against production deployment
+./tests/test-mcp.sh https://mcp.pavlovcik.com/mcp
+
+# Test against local server
+./tests/test-mcp.sh http://localhost:8081/mcp
+```
+
+The test suite validates:
+- ✅ **Accept header validation** (406 error responses)
+- ✅ **GET endpoint** for server-initiated messages
+- ✅ **DELETE endpoint** for session termination
+- ✅ **Response format detection** (JSON vs SSE)
+- ✅ **MCP protocol compliance** (initialize, tools, resources)
+- ✅ **Concurrent request handling**
+- ✅ **Session management** support
+
+### Manual Testing
+
+The proxy servers provide access to a `calculate_sum` tool for manual testing:
 
 ```bash
 # Test the initialize handshake
-curl -X POST http://localhost:8081/mcp \
+curl -X POST https://mcp.pavlovcik.com/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"roots":{"listChanged":false}},"clientInfo":{"name":"test-client","version":"1.0.0"}}}'
 
 # List available tools
-curl -X POST http://localhost:8081/mcp \
+curl -X POST https://mcp.pavlovcik.com/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 
 # Call the calculate_sum tool
-curl -X POST http://localhost:8081/mcp \
+curl -X POST https://mcp.pavlovcik.com/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"calculate_sum","arguments":{"numbers":[1,2,3,4,5]}}}'
@@ -60,6 +90,7 @@ curl -X POST http://localhost:8081/mcp \
 
 - **[docs/API.md](docs/API.md)** - Detailed API documentation and examples
 - **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Deployment guide for local and Cloudflare environments
+- **[docs/TESTING.md](docs/TESTING.md)** - Comprehensive testing guide and Streamable HTTP compliance validation
 - **[docs/mcp-spec/](docs/mcp-spec/)** - Official MCP specification (submodule)
 
 ## Architecture
@@ -74,11 +105,18 @@ curl -X POST http://localhost:8081/mcp \
 
 ### Key Features
 
-- **HTTP Streaming**: Full support for Server-Sent Events (SSE) responses
+#### ✅ **Streamable HTTP Transport (MCP 2025-03-26)**
+- **Single endpoint**: GET, POST, DELETE methods on `/mcp`
+- **Content negotiation**: Supports both JSON and SSE responses
+- **Accept header validation**: Enforces proper client capabilities
+- **Session management**: `Mcp-Session-Id` header support
+- **Security**: Origin validation prevents DNS rebinding attacks
+
+#### 🔧 **Infrastructure Features**
 - **CORS Support**: Configured for cross-origin requests from web clients
-- **Error Handling**: Proper JSON-RPC error responses
+- **Error Handling**: Proper JSON-RPC error responses with HTTP status codes
 - **Health Monitoring**: `/health` endpoint for status checking
-- **Session Forwarding**: Preserves MCP session headers
+- **Concurrent Handling**: Multi-request support with proper streaming
 
 ## Deployment
 
@@ -106,13 +144,18 @@ bun run src/bridge/server.js
 
 ### Local Server (port 8081)
 
-- **POST `/mcp`** - MCP protocol endpoint (proxies to kukapay)
+#### MCP Streamable HTTP Endpoints
+- **POST `/mcp`** - Client requests (requires `Accept: application/json, text/event-stream`)
+- **GET `/mcp`** - Server-initiated messages (returns 405 if not supported by downstream)  
+- **DELETE `/mcp`** - Session termination (requires `Mcp-Session-Id` header)
+
+#### Infrastructure Endpoints
 - **GET `/health`** - Health check and server status
 - **OPTIONS `/*`** - CORS preflight handling
 
 ### Cloudflare Worker
 
-- **POST `/`** - MCP protocol endpoint (proxies to kukapay)
+- **POST `/`** - MCP protocol endpoint (proxies to kukapay with full Streamable HTTP support)
 - **OPTIONS `/`** - CORS preflight handling
 
 ## Environment Variables
@@ -122,11 +165,23 @@ bun run src/bridge/server.js
 
 ## Verification
 
-The setup is verified to work with:
+The setup is **fully compliant** with MCP Streamable HTTP transport specification and verified to work with:
 
-- ✅ MCP protocol initialization
-- ✅ Tool listing and execution
-- ✅ HTTP streaming responses
-- ✅ CORS compliance
-- ✅ Error handling
-- ✅ Claude Code CLI integration
+### ✅ **Transport Compliance (MCP 2025-03-26)**
+- **Single endpoint architecture** (GET/POST/DELETE on `/mcp`)
+- **Accept header validation** (406 errors for invalid headers)
+- **Dual response modes** (JSON and SSE streaming)
+- **Session management** (Mcp-Session-Id header support)
+- **Security features** (Origin validation, DNS rebinding protection)
+
+### ✅ **Protocol Features**
+- **MCP initialization** with protocol version negotiation
+- **Tool listing and execution** (calculate_sum available)
+- **Resource management** (test://data resource)
+- **JSON-RPC 2.0 compliance** with proper error handling
+- **Concurrent request handling** and streaming support
+
+### ✅ **Integration Support**
+- **Claude Code CLI** integration (`claude mcp add --transport http`)
+- **Web client compatibility** (CORS-enabled)
+- **Testing automation** (comprehensive test suite included)

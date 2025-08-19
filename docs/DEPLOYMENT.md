@@ -35,9 +35,15 @@ bun run src/bridge/server.js
 curl http://localhost:8081/health
 ```
 
-The server will be available at `http://localhost:8081` with the following endpoints:
-- `POST /mcp` - MCP protocol endpoint
-- `GET /health` - Health check
+The server will be available at `http://localhost:8081` with **MCP Streamable HTTP transport** compliance:
+
+#### MCP Endpoints (2025-03-26 Specification)
+- `POST /mcp` - Client requests (requires `Accept: application/json, text/event-stream`)
+- `GET /mcp` - Server-initiated messages (returns 405 if not supported by downstream)
+- `DELETE /mcp` - Session termination (requires `Mcp-Session-Id` header)
+
+#### Infrastructure Endpoints
+- `GET /health` - Health check and server status
 
 ### Environment Configuration
 
@@ -143,10 +149,18 @@ To enable automated deployment to Cloudflare:
 
 ### Security
 
+#### ✅ **Implemented Security Features**
+- **Origin validation**: DNS rebinding protection prevents malicious cross-origin requests
+- **Accept header validation**: Ensures proper client capabilities (406 errors)
+- **Session management**: `Mcp-Session-Id` header support for stateful connections
+- **HTTP status codes**: Proper error responses (400, 403, 404, 405, 406)
+
+#### 🔧 **Additional Considerations**
 - Target MCP server is publicly accessible
-- No authentication required for proxy
+- No authentication required for proxy (inherits from downstream)
 - CORS enabled for web client access
 - Consider rate limiting for production use
+- Monitor for DNS rebinding attacks
 
 ### Scaling
 
@@ -164,7 +178,63 @@ Both proxy implementations include:
 
 ## Testing Deployment
 
-### Verify Local Deployment
+### Automated Testing
+
+Use the comprehensive test suite to verify **Streamable HTTP compliance**:
+
+```bash
+# Test local deployment
+./tests/test-mcp.sh http://localhost:8081/mcp
+
+# Test production deployment
+./tests/test-mcp.sh https://mcp.pavlovcik.com/mcp
+```
+
+**Expected Result:**
+```
+🎉 ALL TESTS PASSED! 🎉
+Server is fully compliant with MCP Streamable HTTP transport
+
+✅ Streamable HTTP Transport Features Verified:
+  • POST endpoint with Accept header validation
+  • GET endpoint for server-initiated messages
+  • DELETE endpoint for session termination
+  • Both JSON and SSE response format support
+  • Proper HTTP status codes (200, 405, 406)
+  • SSE event format compliance
+  • Session management readiness
+
+✅ MCP Protocol Features Verified:
+  • Initialize with protocol version negotiation
+  • Tools listing and execution
+  • Resources listing and reading
+  • JSON-RPC 2.0 compliance
+  • Concurrent request handling
+```
+
+### Manual Verification
+
+#### Test Transport Compliance
+
+```bash
+# Test Accept header validation (should return 406)
+curl -X POST http://localhost:8081/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+# Test GET endpoint (should return 405)
+curl -X GET http://localhost:8081/mcp \
+  -H "Accept: text/event-stream" \
+  -w "HTTP_%{http_code}"
+
+# Test valid POST request
+curl -X POST http://localhost:8081/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+#### Test MCP Protocol
 
 ```bash
 # Test health endpoint
@@ -177,11 +247,14 @@ curl -X POST http://localhost:8081/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
 ```
 
-### Verify Cloudflare Deployment
+### Verify Production Deployment
 
 ```bash
-# Test MCP initialize on deployed worker
-curl -X POST https://mcp.pavlovcik.com \
+# Test production server compliance
+./tests/test-mcp.sh https://mcp.pavlovcik.com/mcp
+
+# Manual production test
+curl -X POST https://mcp.pavlovcik.com/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
@@ -217,21 +290,55 @@ claude mcp list
    - Check browser developer tools for specific errors
 
 4. **MCP client connection fails**
-   - Verify Accept header includes `text/event-stream`
-   - Test with curl first before using MCP clients
+   - **Most common**: Missing `Accept: application/json, text/event-stream` header
+   - **Solution**: Ensure client sends both content types in Accept header
+   - Test with automated test suite first: `./tests/test-mcp.sh [URL]`
+
+5. **406 Not Acceptable errors**
+   - **Cause**: Invalid or missing Accept header
+   - **Solution**: Must include both `application/json` and `text/event-stream`
+
+6. **405 Method Not Allowed on GET**
+   - **Normal behavior**: Downstream server doesn't support server-initiated messages
+   - **Not an error**: This is compliant with MCP specification
 
 ### Debug Commands
 
 ```bash
-# Check server logs
+# Run comprehensive test suite with verbose output
+./tests/test-mcp.sh http://localhost:8081/mcp
+
+# Check server logs (filter out health checks)
 bun run src/bridge/server.js | grep -v "GET /health"
 
-# Test streaming response
-curl -N -X POST http://localhost:8081/mcp \
+# Test transport compliance manually
+curl -v -X POST http://localhost:8081/mcp \
   -H "Content-Type: application/json" \
-  -H "Accept: text/event-stream" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+# Test invalid Accept header (should return 406)
+curl -v -X POST http://localhost:8081/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+# Test GET endpoint (should return 405)
+curl -v -X GET http://localhost:8081/mcp \
+  -H "Accept: text/event-stream"
 
 # View Cloudflare Worker logs
 wrangler tail --format pretty
 ```
+
+### Validation Checklist
+
+Before marking deployment as successful, verify:
+
+- ✅ **Transport compliance**: `./tests/test-mcp.sh [URL]` passes all tests
+- ✅ **Accept headers**: 406 errors returned for missing/invalid Accept headers  
+- ✅ **HTTP methods**: GET returns 405, POST returns 200, DELETE returns 400/405
+- ✅ **Response formats**: Both JSON and SSE responses work correctly
+- ✅ **Session support**: `Mcp-Session-Id` headers are forwarded properly
+- ✅ **Security**: Origin validation blocks malicious requests (403 errors)
+- ✅ **MCP protocol**: Initialize, tools/list, tools/call all work
+- ✅ **Claude Code**: `claude mcp add --transport http` integration works
