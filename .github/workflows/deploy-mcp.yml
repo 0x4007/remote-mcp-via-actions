@@ -61,12 +61,12 @@ jobs:
           # Wait for bridge to start
           echo "Waiting for bridge to start..."
           for i in {1..30}; do
-            if curl -s http://localhost:8080/health > /dev/null 2>&1; then
+            if curl -s http://localhost:8081/health > /dev/null 2>&1; then
               echo "✅ MCP HTTP Bridge started successfully"
               
-              # List available servers
-              echo "Available MCP servers:"
-              curl -s http://localhost:8080/servers | jq
+              # Display server info
+              echo "Server info:"
+              curl -s http://localhost:8081/health | jq
               break
             fi
             echo "Waiting... ($i/30)"
@@ -74,7 +74,7 @@ jobs:
           done
           
           # Verify bridge is running
-          if ! curl -s http://localhost:8080/health > /dev/null 2>&1; then
+          if ! curl -s http://localhost:8081/health > /dev/null 2>&1; then
             echo "❌ Failed to start MCP HTTP Bridge"
             echo "Bridge logs:"
             cat bridge.log
@@ -87,7 +87,7 @@ jobs:
       - name: Start Cloudflare Quick Tunnel
         run: |
           echo "Starting Cloudflare quick tunnel..."
-          nohup cloudflared tunnel --no-autoupdate --url http://localhost:8080 > logs/cloudflared.log 2>&1 &
+          nohup cloudflared tunnel --no-autoupdate --url http://localhost:8081 > logs/cloudflared.log 2>&1 &
           TUNNEL_PID=$!
           echo "Cloudflare tunnel starting with PID: $TUNNEL_PID"
           
