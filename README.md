@@ -56,6 +56,12 @@ curl -X POST http://localhost:8081/mcp \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"calculate_sum","arguments":{"numbers":[1,2,3,4,5]}}}'
 ```
 
+## Documentation
+
+- **[docs/API.md](docs/API.md)** - Detailed API documentation and examples
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Deployment guide for local and Cloudflare environments
+- **[docs/mcp-spec/](docs/mcp-spec/)** - Official MCP specification (submodule)
+
 ## Architecture
 
 ### Components

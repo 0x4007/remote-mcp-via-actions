@@ -5,8 +5,8 @@ This directory contains documentation for the Remote MCP via Actions POC project
 ## Files
 
 - **[../README.md](../README.md)** - Project overview and quick start guide
-- **[../API.md](../API.md)** - Detailed API documentation and examples
-- **[../DEPLOYMENT.md](../DEPLOYMENT.md)** - Deployment guide for local and Cloudflare environments
+- **[API.md](API.md)** - Detailed API documentation and examples
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Deployment guide for local and Cloudflare environments
 
 ## MCP Specification
 
