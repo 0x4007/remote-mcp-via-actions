@@ -30,21 +30,32 @@ jobs:
         working-directory: zen-mcp-server
         run: chmod +x run-server.sh
 
-      - name: Start Zen MCP server in background
+      - name: Start Zen MCP server
         working-directory: zen-mcp-server
         run: |
-          # Use the official run script which handles all setup
-          nohup ./run-server.sh > server.log 2>&1 &
-          echo "Waiting for MCP server to start..."
+          # The run-server.sh script sets up the environment but exits
+          # We need to run the actual server after setup
+          echo "Setting up Zen MCP environment..."
+          ./run-server.sh || true
           
-          # Wait for server to start (it may take time to install dependencies)
-          for i in {1..60}; do
+          # Now start the actual server
+          echo "Starting MCP server..."
+          source .venv/bin/activate 2>/dev/null || source venv/bin/activate 2>/dev/null || true
+          
+          # Start the server directly
+          nohup python -m zen_mcp.server > server.log 2>&1 &
+          SERVER_PID=$!
+          echo "Server started with PID: $SERVER_PID"
+          
+          # Wait for server to start
+          echo "Waiting for MCP server to start..."
+          for i in {1..30}; do
             if curl -s http://localhost:3000 > /dev/null 2>&1; then
               echo "✅ Zen MCP server started successfully on port 3000"
               break
             fi
-            echo "Waiting... ($i/60)"
-            sleep 3
+            echo "Waiting... ($i/30)"
+            sleep 2
           done
           
           # Check if server is actually running
@@ -52,10 +63,7 @@ jobs:
             echo "❌ Failed to start MCP server. Logs:"
             cat server.log
             echo "---"
-            if [ -f nohup.out ]; then
-              echo "Nohup output:"
-              cat nohup.out
-            fi
+            ps aux | grep -E "python|zen_mcp" | grep -v grep
             exit 1
           fi
 
