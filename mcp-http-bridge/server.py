@@ -14,6 +14,7 @@ import os
 import subprocess
 import sys
 import uuid
+import time
 from pathlib import Path
 from typing import Dict, Optional, Any
 from dataclasses import dataclass
@@ -141,6 +142,9 @@ class MCPBridgeServer:
     
     def __init__(self):
         self.servers: Dict[str, MCPServerProcess] = {}
+        self.last_request_time = time.time()
+        self.inactivity_timeout = 3600  # 1 hour in seconds
+        self.shutdown_task: Optional[asyncio.Task] = None
         
     def add_server(self, config: MCPServerConfig):
         """Add an MCP server configuration"""
@@ -161,6 +165,30 @@ class MCPBridgeServer:
         """Stop all servers"""
         for server in self.servers.values():
             await server.stop()
+            
+    def update_activity(self):
+        """Update the last request time"""
+        self.last_request_time = time.time()
+        
+    async def check_inactivity(self):
+        """Check for inactivity and shutdown if timeout exceeded"""
+        while True:
+            try:
+                await asyncio.sleep(60)  # Check every minute
+                inactive_time = time.time() - self.last_request_time
+                
+                if inactive_time >= self.inactivity_timeout:
+                    logger.warning(f"Inactivity timeout reached ({inactive_time:.0f}s). Shutting down...")
+                    # Trigger graceful shutdown
+                    os._exit(0)
+                else:
+                    remaining = self.inactivity_timeout - inactive_time
+                    logger.info(f"Activity check: {remaining:.0f}s remaining before timeout")
+                    
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in inactivity check: {e}")
 
 # Create the bridge server instance
 bridge = MCPBridgeServer()
@@ -176,6 +204,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def track_activity(request: Request, call_next):
+    """Middleware to track request activity"""
+    # Update activity timestamp
+    bridge.update_activity()
+    
+    # Process the request
+    response = await call_next(request)
+    return response
 
 @app.on_event("startup")
 async def startup():
@@ -209,21 +247,37 @@ async def startup():
     
     # Start all servers
     await bridge.start_all()
+    
+    # Start inactivity checker
+    bridge.shutdown_task = asyncio.create_task(bridge.check_inactivity())
+    logger.info(f"Started inactivity monitor (timeout: {bridge.inactivity_timeout}s)")
 
 @app.on_event("shutdown")
 async def shutdown():
     """Stop all MCP servers on shutdown"""
+    if bridge.shutdown_task:
+        bridge.shutdown_task.cancel()
     await bridge.stop_all()
 
 @app.get("/health")
 async def health():
     """Health check endpoint"""
+    inactive_time = time.time() - bridge.last_request_time
+    remaining_time = max(0, bridge.inactivity_timeout - inactive_time)
+    
     return {
         "status": "healthy",
         "servers": list(bridge.servers.keys()),
         "version": os.getenv("DEPLOYMENT_VERSION", "unknown"),
         "commit": os.getenv("GITHUB_SHA", "unknown")[:8],
-        "deployed_at": os.getenv("DEPLOYMENT_TIME", "unknown")
+        "deployed_at": os.getenv("DEPLOYMENT_TIME", "unknown"),
+        "inactivity": {
+            "timeout_seconds": bridge.inactivity_timeout,
+            "inactive_seconds": int(inactive_time),
+            "remaining_seconds": int(remaining_time),
+            "will_shutdown_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", 
+                                             time.gmtime(bridge.last_request_time + bridge.inactivity_timeout))
+        }
     }
 
 @app.get("/servers")
