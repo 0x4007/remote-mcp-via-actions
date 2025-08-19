@@ -194,6 +194,19 @@ app.get('/mcp', validateOrigin, validateProtocolVersion, async (req, res) => {
   const sessionId = req.get('Mcp-Session-Id');
   const accept = req.get('Accept') || '';
   
+  // Special case: If no Accept header or Accept: */*, return a simple health response
+  // This allows Claude Code to check if the endpoint exists
+  if (!accept || accept === '*/*' || accept.includes('application/json')) {
+    return res.json({
+      jsonrpc: '2.0',
+      result: {
+        status: 'ok',
+        protocol: MCP_PROTOCOL_VERSION,
+        server: SERVER_NAME
+      }
+    });
+  }
+  
   // Per MCP spec: GET endpoint MUST either return SSE stream or 405 Method Not Allowed
   // Check if client wants SSE stream
   if (!accept.includes('text/event-stream')) {
