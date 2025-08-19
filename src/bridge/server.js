@@ -276,15 +276,15 @@ app.post('/mcp', validateOrigin, validateProtocolVersion, validateSession, async
   try {
     console.log('Received MCP request:', JSON.stringify(req.body, null, 2));
 
-    // Validate Accept header per MCP spec: client MUST include both application/json and text/event-stream
+    // Validate Accept header - be permissive for compatibility
     const accept = req.get('Accept') || '';
-    if (!accept.includes('application/json') || !accept.includes('text/event-stream')) {
+    if (!accept.includes('application/json') && !accept.includes('text/event-stream')) {
       return res.status(406).json({
         jsonrpc: '2.0',
         id: req.body.id,
         error: {
           code: -32603,
-          message: 'Accept header must include both application/json and text/event-stream'
+          message: 'Accept header must include application/json or text/event-stream'
         }
       });
     }
