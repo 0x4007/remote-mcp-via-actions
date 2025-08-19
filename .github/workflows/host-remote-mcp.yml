@@ -75,6 +75,15 @@ jobs:
         with:
           cloudflare_tunnel_credential: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
 
+      - name: Start Cloudflare Tunnel
+        run: |
+          echo "Starting Cloudflare tunnel..."
+          nohup cloudflared tunnel run --token ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }} > cloudflared.log 2>&1 &
+          echo "Cloudflare tunnel starting..."
+          
+          # Wait for tunnel to establish
+          sleep 10
+
       - name: Display endpoint info
         run: |
           echo "==================================="
