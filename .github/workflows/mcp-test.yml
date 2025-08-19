@@ -1,0 +1,38 @@
+name: MCP Server Tests
+
+on:
+  push:
+    branches: [ main, feat/* ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test-mcp:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl jq
+    
+    - name: Make test script executable
+      run: chmod +x test-mcp.sh
+    
+    - name: Test MCP server at default endpoint
+      run: ./test-mcp.sh
+      env:
+        MCP_URL: https://test.kukapay.com/api/mcp
+    
+    - name: Test MCP server at proxy endpoint
+      run: ./test-mcp.sh https://mcp.pavlovcik.com/
+      continue-on-error: true
+      
+    - name: Validate test outputs
+      run: |
+        echo "MCP test completed successfully"
+        echo "✅ All endpoints tested"

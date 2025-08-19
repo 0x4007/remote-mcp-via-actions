@@ -2,8 +2,8 @@ const express = require('express');
 const axios = require('axios');
 
 const app = express();
-const port = process.env.PORT || 8080;
-const TARGET_MCP_URL = 'https://mcp.pavlovcik.com';
+const port = process.env.PORT || 8081;
+const TARGET_MCP_URL = 'https://test.kukapay.com/api/mcp';
 
 app.use(express.json({ limit: '10mb' }));
 

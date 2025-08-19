@@ -29,7 +29,7 @@ jobs:
 
       - name: Create required directories
         run: |
-          mkdir -p logs temp
+          mkdir -p logs tmp
           
       - name: Make install script executable
         run: chmod +x scripts/install-servers.sh
@@ -115,7 +115,7 @@ jobs:
           echo "✅ Tunnel established at: $TUNNEL_URL"
           
           # Save to file
-          echo "$TUNNEL_URL" > temp/tunnel_url.txt
+          echo "$TUNNEL_URL" > tmp/tunnel_url.txt
 
       - name: Display endpoint info
         run: |
@@ -142,7 +142,7 @@ jobs:
           echo ""
           
           # Save endpoints to file
-          cat > temp/endpoints.txt << EOF
+          cat > tmp/endpoints.txt << EOF
           MCP Server Endpoints:
           Base URL: $TUNNEL_URL
           Health: $TUNNEL_URL/health
@@ -171,8 +171,8 @@ jobs:
         with:
           name: tunnel-info
           path: |
-            temp/tunnel_url.txt
-            temp/endpoints.txt
+            tmp/tunnel_url.txt
+            tmp/endpoints.txt
             logs/cloudflared.log
 
       - name: Update tunnel status

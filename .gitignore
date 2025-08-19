@@ -29,6 +29,7 @@ logs/
 *.temp
 .cache/
 temp/
+tmp/
 
 # MCP specific
 zen-mcp-server/
