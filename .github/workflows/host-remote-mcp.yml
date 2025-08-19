@@ -41,21 +41,40 @@ jobs:
           # Assuming Zen MCP is a FastAPI/uvicorn app; replace with actual start command
           # From docs/community, it's often: uvicorn zen_mcp.server:app --host 0.0.0.0 --port 8080
           nohup uvicorn zen_mcp.server:app --host 0.0.0.0 --port 8080 > mcp.log 2>&1 &
-          sleep 15  # Give time for server to start; check logs if issues
-          echo "Zen MCP server started on port 8080"
+          echo "Waiting for MCP server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8080 > /dev/null; then
+              echo "Zen MCP server started successfully on port 8080"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
+          # Check if server is actually running
+          if ! curl -s http://localhost:8080 > /dev/null; then
+            echo "Failed to start MCP server. Logs:"
+            cat mcp.log
+            exit 1
+          fi
 
       - name: Set up Cloudflare Tunnel
         uses: AnimMouse/setup-cloudflared@v1
         with:
-          tunnel-token: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
-          # The action runs 'cloudflared tunnel run --token ...' which connects to your pre-configured tunnel
-          # No args needed for --url since ingress is set in Cloudflare (points to localhost:8080)
+          cloudflare_tunnel_credential: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
 
       - name: Display endpoint info
         run: |
-          # Your static URL is the one configured in Cloudflare (e.g., https://mcp.yourdomain.com)
-          # It will be live once the tunnel connects; check Action logs for cloudflared output if issues
-          echo "Zen MCP is now exposed at your configured Cloudflare domain (e.g., https://mcp.yourdomain.com)"
+          echo "==================================="
+          echo "Zen MCP is now accessible at:"
+          echo "https://mcp.pavlovcik.com"
+          echo "==================================="
+          # Test the public endpoint
+          sleep 5
+          if curl -s https://mcp.pavlovcik.com > /dev/null 2>&1; then
+            echo "✅ Public endpoint is working!"
+          else
+            echo "⚠️  Public endpoint may still be initializing..."
+          fi
 
       - name: Keep server running for up to 6 hours
         run: |
