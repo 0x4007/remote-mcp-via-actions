@@ -12,17 +12,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install MCP HTTP Bridge dependencies
+      - name: Install MCP Server dependencies
         working-directory: src/bridge
         run: |
           npm install
@@ -30,39 +25,27 @@ jobs:
       - name: Create required directories
         run: |
           mkdir -p logs tmp
-          
-      - name: Make install script executable
-        run: chmod +x scripts/install-servers.sh
 
-      - name: Install MCP servers
-        run: |
-          # Set up environment
-          export OPENROUTER_API_KEY=${{ secrets.OPENROUTER_TOKEN }}
-          
-          # Run installation script
-          ./scripts/install-servers.sh
-
-      - name: Start MCP HTTP Bridge
+      - name: Start Custom MCP Server
         working-directory: src/bridge
         run: |
-          # Export environment variables needed by MCP servers
-          export OPENROUTER_API_KEY=${{ secrets.OPENROUTER_TOKEN }}
+          # Export environment variables
           export GITHUB_SHA=${{ github.sha }}
           export DEPLOYMENT_VERSION="${{ github.sha }}"
           export DEPLOYMENT_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           
-          # Start the bridge server
-          echo "Starting MCP HTTP Bridge..."
+          # Start the custom MCP server
+          echo "Starting Custom MCP Server..."
           echo "Deployment version: ${GITHUB_SHA:0:8}"
           nohup node server.js > bridge.log 2>&1 &
           BRIDGE_PID=$!
-          echo "Bridge started with PID: $BRIDGE_PID"
+          echo "Custom MCP Server started with PID: $BRIDGE_PID"
           
-          # Wait for bridge to start
-          echo "Waiting for bridge to start..."
+          # Wait for server to start
+          echo "Waiting for server to start..."
           for i in {1..30}; do
             if curl -s http://localhost:8081/health > /dev/null 2>&1; then
-              echo "✅ MCP HTTP Bridge started successfully"
+              echo "✅ Custom MCP Server started successfully"
               
               # Display server info
               echo "Server info:"
@@ -73,10 +56,10 @@ jobs:
             sleep 2
           done
           
-          # Verify bridge is running
+          # Verify server is running
           if ! curl -s http://localhost:8081/health > /dev/null 2>&1; then
-            echo "❌ Failed to start MCP HTTP Bridge"
-            echo "Bridge logs:"
+            echo "❌ Failed to start Custom MCP Server"
+            echo "Server logs:"
             cat bridge.log
             exit 1
           fi
@@ -120,7 +103,7 @@ jobs:
       - name: Display endpoint info
         run: |
           echo "==================================="
-          echo "MCP servers are now accessible at:"
+          echo "Custom MCP Server is now accessible at:"
           echo "$TUNNEL_URL"
           echo ""
           echo "Custom domain will be available at:"
@@ -132,22 +115,22 @@ jobs:
           echo ""
           echo "Available endpoints:"
           echo "  Health: $TUNNEL_URL/health"
-          echo "  Servers: $TUNNEL_URL/servers"
-          echo "  Zen tools: $TUNNEL_URL/servers/zen/tools"
+          echo "  MCP Protocol: $TUNNEL_URL/mcp"
           echo ""
           echo "Via custom domain (after DNS propagates):"
           echo "  Health: https://mcp.pavlovcik.com/health"
-          echo "  Servers: https://mcp.pavlovcik.com/servers"
-          echo "  Zen tools: https://mcp.pavlovcik.com/servers/zen/tools"
+          echo "  MCP Protocol: https://mcp.pavlovcik.com/mcp"
+          echo ""
+          echo "Available tools: calculate_sum, echo"
           echo ""
           
           # Save endpoints to file
           cat > tmp/endpoints.txt << EOF
-          MCP Server Endpoints:
+          Custom MCP Server Endpoints:
           Base URL: $TUNNEL_URL
           Health: $TUNNEL_URL/health
-          Servers: $TUNNEL_URL/servers
-          Zen tools: $TUNNEL_URL/servers/zen/tools
+          MCP Protocol: $TUNNEL_URL/mcp
+          Tools: calculate_sum, echo
           EOF
           
           # Test the public endpoint
@@ -188,9 +171,10 @@ jobs:
             "status": "active",
             "endpoints": {
               "health": "$TUNNEL_URL/health",
-              "servers": "$TUNNEL_URL/servers",
-              "zen_tools": "$TUNNEL_URL/servers/zen/tools"
-            }
+              "mcp": "$TUNNEL_URL/mcp"
+            },
+            "tools": ["calculate_sum", "echo"],
+            "protocol": "MCP Streamable HTTP 2025-06-18"
           }
           EOF
           
@@ -223,24 +207,27 @@ jobs:
           echo "mcp.pavlovcik.com will now proxy to $TUNNEL_URL"
           echo ""
           echo "Claude Code MCP configuration:"
-          echo "URL: https://mcp.pavlovcik.com"
+          echo "claude mcp add --transport http custom-demo https://mcp.pavlovcik.com/mcp"
 
       - name: Keep server running
         run: |
-          echo "MCP servers running. Server will auto-shutdown after 1 hour of inactivity..."
-          echo "Tunnel URL: $TUNNEL_URL"
+          echo "Custom MCP Server running at: $TUNNEL_URL"
+          echo "Available tools: calculate_sum, echo"
+          echo "Protocol: MCP Streamable HTTP 2025-06-18"
+          echo ""
+          echo "Server will keep running until the GitHub Actions timeout..."
           
-          # Monitor the bridge process
+          # Monitor the server process
           BRIDGE_PID=$(pgrep -f "node server.js")
           
           # Keep checking if the process is alive
           while kill -0 $BRIDGE_PID 2>/dev/null; do
-            # Check health endpoint to see remaining time
-            HEALTH_RESPONSE=$(curl -s http://localhost:8080/health 2>/dev/null || echo "{}")
+            # Check health endpoint
+            HEALTH_RESPONSE=$(curl -s http://localhost:8081/health 2>/dev/null || echo "{}")
             if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
-              REMAINING=$(echo "$HEALTH_RESPONSE" | jq -r '.inactivity.remaining_seconds // 0')
-              INACTIVE=$(echo "$HEALTH_RESPONSE" | jq -r '.inactivity.inactive_seconds // 0')
-              echo "[$(date)] Server active. Inactive for ${INACTIVE}s, ${REMAINING}s until auto-shutdown"
+              UPTIME=$(echo "$HEALTH_RESPONSE" | jq -r '.uptime // 0')
+              SESSIONS=$(echo "$HEALTH_RESPONSE" | jq -r '.activeSessions // 0')
+              echo "[$(date)] Server running - Uptime: ${UPTIME}s, Active sessions: ${SESSIONS}"
             fi
             
             sleep 60  # Check every minute

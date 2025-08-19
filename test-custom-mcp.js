@@ -2,7 +2,7 @@
 
 const http = require('http');
 
-const SERVER_URL = 'http://localhost:8082/mcp';
+const SERVER_URL = 'http://localhost:8083/mcp';
 
 function makeRequest(method, body, sessionId = null) {
   return new Promise((resolve, reject) => {
@@ -10,7 +10,7 @@ function makeRequest(method, body, sessionId = null) {
     
     const options = {
       hostname: 'localhost',
-      port: 8082,
+      port: 8083,
       path: '/mcp',
       method,
       headers: {
@@ -144,7 +144,7 @@ async function testMCP() {
 }
 
 // Test health endpoint first
-http.get('http://localhost:8082/health', (res) => {
+http.get('http://localhost:8083/health', (res) => {
   let data = '';
   res.on('data', (chunk) => data += chunk);
   res.on('end', () => {
