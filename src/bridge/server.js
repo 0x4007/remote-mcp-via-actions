@@ -194,22 +194,15 @@ app.get('/mcp', validateOrigin, validateProtocolVersion, async (req, res) => {
   const sessionId = req.get('Mcp-Session-Id');
   const accept = req.get('Accept') || '';
   
-  // Check if this is a health check request (no session ID and short timeout expected)
-  if (!sessionId && !accept.includes('text/event-stream')) {
-    // Return a simple health check response for Claude Code
-    return res.json({
+  // Per MCP spec: GET endpoint MUST either return SSE stream or 405 Method Not Allowed
+  // Check if client wants SSE stream
+  if (!accept.includes('text/event-stream')) {
+    // Client doesn't accept SSE, return 405 per spec
+    return res.status(405).json({
       jsonrpc: '2.0',
-      result: {
-        status: 'healthy',
-        capabilities: {
-          streaming: true,
-          serverInitiated: true
-        },
-        serverInfo: {
-          name: SERVER_NAME,
-          version: SERVER_VERSION,
-          protocolVersion: MCP_PROTOCOL_VERSION
-        }
+      error: {
+        code: -32603,
+        message: 'Method not allowed - GET endpoint requires Accept: text/event-stream'
       }
     });
   }
@@ -283,15 +276,15 @@ app.post('/mcp', validateOrigin, validateProtocolVersion, validateSession, async
   try {
     console.log('Received MCP request:', JSON.stringify(req.body, null, 2));
 
-    // Validate Accept header
+    // Validate Accept header per MCP spec: client MUST include both application/json and text/event-stream
     const accept = req.get('Accept') || '';
-    if (!accept.includes('application/json') && !accept.includes('text/event-stream')) {
+    if (!accept.includes('application/json') || !accept.includes('text/event-stream')) {
       return res.status(406).json({
         jsonrpc: '2.0',
         id: req.body.id,
         error: {
           code: -32603,
-          message: 'Must accept application/json or text/event-stream'
+          message: 'Accept header must include both application/json and text/event-stream'
         }
       });
     }
@@ -340,6 +333,11 @@ app.post('/mcp', validateOrigin, validateProtocolVersion, validateSession, async
           
         case 'tools/call':
           result = await mcpServer.handleCallTool(params || {});
+          break;
+          
+        case 'ping':
+          // Handle ping request per MCP spec
+          result = {};
           break;
           
         default:
