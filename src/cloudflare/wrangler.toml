@@ -3,11 +3,11 @@ main = "worker.js"
 compatibility_date = "2024-01-01"
 account_id = "5c0228bee348f4cf48829ffe21b61fe9"
 
-[[kv_namespaces]]
-binding = "TUNNEL_KV"
-id = "7e1605c08a3c407c9f8a331f25b5c117"
-
 [env.production]
 routes = [
   { pattern = "mcp.pavlovcik.com/*", zone_id = "5e71cd632101e1b9f1d4ed98f7696bbb" }
 ]
+
+[[env.production.kv_namespaces]]
+binding = "MCP_TUNNEL_URL"
+id = "7e1605c08a3c407c9f8a331f25b5c117"
