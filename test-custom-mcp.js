@@ -7,11 +7,11 @@ const SERVER_URL = 'http://localhost:8083/mcp';
 function makeRequest(method, body, sessionId = null) {
   return new Promise((resolve, reject) => {
     const postData = JSON.stringify(body);
-    
+
     const options = {
       hostname: 'localhost',
       port: 8083,
-      path: '/mcp',
+      path: '/',
       method,
       headers: {
         'Content-Type': 'application/json',
@@ -27,11 +27,11 @@ function makeRequest(method, body, sessionId = null) {
 
     const req = http.request(options, (res) => {
       let data = '';
-      
+
       res.on('data', (chunk) => {
         data += chunk;
       });
-      
+
       res.on('end', () => {
         resolve({
           statusCode: res.statusCode,
@@ -69,10 +69,10 @@ async function testMCP() {
         }
       }
     });
-    
+
     console.log('   Status:', initResponse.statusCode);
     console.log('   Response:', JSON.stringify(initResponse.body, null, 2));
-    
+
     const sessionId = initResponse.headers['mcp-session-id'];
     console.log('   Session ID:', sessionId);
 
@@ -87,7 +87,7 @@ async function testMCP() {
       method: 'initialized',
       params: {}
     }, sessionId);
-    
+
     console.log('   Status:', initializedResponse.statusCode);
 
     // Test 3: List tools
@@ -98,7 +98,7 @@ async function testMCP() {
       method: 'tools/list',
       params: {}
     }, sessionId);
-    
+
     console.log('   Status:', toolsResponse.statusCode);
     console.log('   Tools:', JSON.stringify(toolsResponse.body, null, 2));
 
@@ -115,7 +115,7 @@ async function testMCP() {
         }
       }
     }, sessionId);
-    
+
     console.log('   Status:', sumResponse.statusCode);
     console.log('   Result:', JSON.stringify(sumResponse.body, null, 2));
 
@@ -132,7 +132,7 @@ async function testMCP() {
         }
       }
     }, sessionId);
-    
+
     console.log('   Status:', echoResponse.statusCode);
     console.log('   Result:', JSON.stringify(echoResponse.body, null, 2));
 
