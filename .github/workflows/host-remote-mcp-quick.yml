@@ -170,7 +170,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Create a simple JSON file with the current tunnel URL
-          cat > tunnel-status.json << EOF
+          mkdir -p docs
+          cat > docs/tunnel-status.json << EOF
           {
             "url": "$TUNNEL_URL",
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
@@ -183,83 +184,22 @@ jobs:
           }
           EOF
           
-          # Create a simple HTML redirect page
-          cat > index.html << EOF
-          <!DOCTYPE html>
-          <html>
-          <head>
-              <title>MCP Server Redirect</title>
-              <meta http-equiv="refresh" content="0; url=$TUNNEL_URL">
-              <script>
-                window.location.href = "$TUNNEL_URL";
-              </script>
-          </head>
-          <body>
-              <p>Redirecting to MCP server at <a href="$TUNNEL_URL">$TUNNEL_URL</a></p>
-          </body>
-          </html>
-          EOF
-          
           echo "Tunnel status saved"
+          
+          # Commit and push to GitHub Pages
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add docs/tunnel-status.json
+          git commit -m "Update tunnel status" || echo "No changes to commit"
+          git push || echo "Push failed"
 
-      - name: Update Cloudflare DNS
-        env:
-          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+      - name: Setup GitHub Pages
         run: |
-          echo "Updating DNS record for mcp.pavlovcik.com..."
-          
-          # Extract hostname from tunnel URL
-          TUNNEL_HOST=$(echo $TUNNEL_URL | sed 's~https://~~')
-          
-          # Get existing DNS record
-          RECORD_RESPONSE=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records?name=mcp.pavlovcik.com" \
-            -H "Authorization: Bearer $CF_API_TOKEN" \
-            -H "Content-Type: application/json")
-          
-          RECORD_ID=$(echo $RECORD_RESPONSE | jq -r '.result[0].id // empty')
-          
-          if [ -n "$RECORD_ID" ]; then
-            echo "Updating existing DNS record..."
-            UPDATE_RESPONSE=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records/$RECORD_ID" \
-              -H "Authorization: Bearer $CF_API_TOKEN" \
-              -H "Content-Type: application/json" \
-              --data "{
-                \"type\": \"CNAME\",
-                \"name\": \"mcp\",
-                \"content\": \"$TUNNEL_HOST\",
-                \"ttl\": 1,
-                \"proxied\": false
-              }")
-            
-            if echo $UPDATE_RESPONSE | jq -e '.success' > /dev/null; then
-              echo "✅ DNS record updated successfully!"
-              echo "mcp.pavlovcik.com now points to $TUNNEL_HOST"
-            else
-              echo "❌ Failed to update DNS record"
-              echo $UPDATE_RESPONSE | jq
-            fi
-          else
-            echo "Creating new DNS record..."
-            CREATE_RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records" \
-              -H "Authorization: Bearer $CF_API_TOKEN" \
-              -H "Content-Type: application/json" \
-              --data "{
-                \"type\": \"CNAME\",
-                \"name\": \"mcp\",
-                \"content\": \"$TUNNEL_HOST\",
-                \"ttl\": 1,
-                \"proxied\": false
-              }")
-            
-            if echo $CREATE_RESPONSE | jq -e '.success' > /dev/null; then
-              echo "✅ DNS record created successfully!"
-              echo "mcp.pavlovcik.com now points to $TUNNEL_HOST"
-            else
-              echo "❌ Failed to create DNS record"
-              echo $CREATE_RESPONSE | jq
-            fi
-          fi
+          echo "GitHub Pages will be available at:"
+          echo "https://0x4007.github.io/remote-mcp-via-actions/"
+          echo ""
+          echo "You can also set up a CNAME for mcp.pavlovcik.com to point to:"
+          echo "0x4007.github.io"
 
       - name: Keep server running
         run: |

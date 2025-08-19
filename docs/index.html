@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MCP Server Status</title>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        .status { 
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .active {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .inactive {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .url {
+            word-break: break-all;
+            font-family: monospace;
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MCP Server Status</h1>
+        <div id="status" class="loading">Checking server status...</div>
+    </div>
+
+    <script>
+        async function checkStatus() {
+            const statusDiv = document.getElementById('status');
+            
+            try {
+                // Fetch tunnel status from GitHub artifact or API
+                const response = await fetch('tunnel-status.json');
+                
+                if (!response.ok) {
+                    throw new Error('Status file not found');
+                }
+                
+                const data = await response.json();
+                const now = new Date();
+                const timestamp = new Date(data.timestamp);
+                const hoursAgo = (now - timestamp) / (1000 * 60 * 60);
+                
+                if (hoursAgo < 6) {
+                    statusDiv.className = 'status active';
+                    statusDiv.innerHTML = `
+                        <h2>✅ Server Active</h2>
+                        <p>The MCP server is currently running.</p>
+                        <div class="url">
+                            <strong>Direct URL:</strong><br>
+                            <a href="${data.url}" target="_blank">${data.url}</a>
+                        </div>
+                        <p>Available endpoints:</p>
+                        <ul>
+                            <li><a href="${data.endpoints.health}" target="_blank">Health Check</a></li>
+                            <li><a href="${data.endpoints.servers}" target="_blank">List Servers</a></li>
+                            <li><a href="${data.endpoints.zen_tools}" target="_blank">Zen Tools</a></li>
+                        </ul>
+                        <p><small>Last updated: ${timestamp.toLocaleString()}</small></p>
+                    `;
+                } else {
+                    statusDiv.className = 'status inactive';
+                    statusDiv.innerHTML = `
+                        <h2>⚠️ Server Inactive</h2>
+                        <p>The MCP server deployment has expired (runs for 6 hours).</p>
+                        <p>To start a new deployment:</p>
+                        <ol>
+                            <li>Go to <a href="https://github.com/0x4007/remote-mcp-via-actions/actions" target="_blank">GitHub Actions</a></li>
+                            <li>Click "Host Remote MCP Servers (Quick Tunnel)"</li>
+                            <li>Click "Run workflow"</li>
+                            <li>Wait for deployment to complete</li>
+                            <li>Refresh this page</li>
+                        </ol>
+                        <p><small>Last deployment: ${timestamp.toLocaleString()}</small></p>
+                    `;
+                }
+            } catch (error) {
+                statusDiv.className = 'status inactive';
+                statusDiv.innerHTML = `
+                    <h2>❌ No Active Deployment</h2>
+                    <p>No MCP server is currently deployed.</p>
+                    <p>To start a deployment:</p>
+                    <ol>
+                        <li>Go to <a href="https://github.com/0x4007/remote-mcp-via-actions/actions" target="_blank">GitHub Actions</a></li>
+                        <li>Click "Host Remote MCP Servers (Quick Tunnel)"</li>
+                        <li>Click "Run workflow"</li>
+                        <li>Wait for deployment to complete</li>
+                        <li>Refresh this page</li>
+                    </ol>
+                `;
+            }
+        }
+        
+        // Check status on load
+        checkStatus();
+        
+        // Auto-refresh every 30 seconds
+        setInterval(checkStatus, 30000);
+    </script>
+</body>
+</html>
