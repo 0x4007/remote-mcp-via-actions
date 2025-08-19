@@ -4,7 +4,7 @@
       "name": "zen",
       "server": "zen",
       "type": "stdout",
-      "command": "python",
+      "command": "python3",
       "args": ["server.py"],
       "code_dir": ".",
       "path": "../../zen-mcp-server",
