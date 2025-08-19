@@ -114,12 +114,21 @@ jobs:
           echo "==================================="
           echo "MCP servers are now accessible at:"
           echo "$TUNNEL_URL"
+          echo ""
+          echo "Custom domain will be available at:"
+          echo "https://mcp.pavlovcik.com"
+          echo "(DNS propagation may take a few minutes)"
           echo "==================================="
           echo ""
           echo "Available endpoints:"
           echo "  Health: $TUNNEL_URL/health"
           echo "  Servers: $TUNNEL_URL/servers"
           echo "  Zen tools: $TUNNEL_URL/servers/zen/tools"
+          echo ""
+          echo "Via custom domain (after DNS propagates):"
+          echo "  Health: https://mcp.pavlovcik.com/health"
+          echo "  Servers: https://mcp.pavlovcik.com/servers"
+          echo "  Zen tools: https://mcp.pavlovcik.com/servers/zen/tools"
           echo ""
           
           # Save endpoints to file
@@ -192,6 +201,65 @@ jobs:
           EOF
           
           echo "Tunnel status saved"
+
+      - name: Update Cloudflare DNS
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          echo "Updating DNS record for mcp.pavlovcik.com..."
+          
+          # Extract hostname from tunnel URL
+          TUNNEL_HOST=$(echo $TUNNEL_URL | sed 's~https://~~')
+          
+          # Get existing DNS record
+          RECORD_RESPONSE=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records?name=mcp.pavlovcik.com" \
+            -H "Authorization: Bearer $CF_API_TOKEN" \
+            -H "Content-Type: application/json")
+          
+          RECORD_ID=$(echo $RECORD_RESPONSE | jq -r '.result[0].id // empty')
+          
+          if [ -n "$RECORD_ID" ]; then
+            echo "Updating existing DNS record..."
+            UPDATE_RESPONSE=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records/$RECORD_ID" \
+              -H "Authorization: Bearer $CF_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "{
+                \"type\": \"CNAME\",
+                \"name\": \"mcp\",
+                \"content\": \"$TUNNEL_HOST\",
+                \"ttl\": 1,
+                \"proxied\": false
+              }")
+            
+            if echo $UPDATE_RESPONSE | jq -e '.success' > /dev/null; then
+              echo "✅ DNS record updated successfully!"
+              echo "mcp.pavlovcik.com now points to $TUNNEL_HOST"
+            else
+              echo "❌ Failed to update DNS record"
+              echo $UPDATE_RESPONSE | jq
+            fi
+          else
+            echo "Creating new DNS record..."
+            CREATE_RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records" \
+              -H "Authorization: Bearer $CF_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "{
+                \"type\": \"CNAME\",
+                \"name\": \"mcp\",
+                \"content\": \"$TUNNEL_HOST\",
+                \"ttl\": 1,
+                \"proxied\": false
+              }")
+            
+            if echo $CREATE_RESPONSE | jq -e '.success' > /dev/null; then
+              echo "✅ DNS record created successfully!"
+              echo "mcp.pavlovcik.com now points to $TUNNEL_HOST"
+            else
+              echo "❌ Failed to create DNS record"
+              echo $CREATE_RESPONSE | jq
+            fi
+          fi
 
       - name: Keep server running
         run: |
