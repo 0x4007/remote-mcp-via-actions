@@ -44,7 +44,6 @@ local-tunnel.log
 # GitHub Pages
 docs/_site/
 docs/.jekyll-cache/
-docs/tunnel-status.json
 
 # Local scripts
 *.local.sh
