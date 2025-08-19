@@ -137,6 +137,7 @@ const mcpServer = new MCPServer();
 
 // Origin validation for DNS rebinding protection
 const validateOrigin = (req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} from ${req.get('User-Agent')} with Accept: ${req.get('Accept')}`);
   const origin = req.get('Origin');
   const host = req.get('Host');
   
