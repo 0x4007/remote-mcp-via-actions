@@ -26,7 +26,7 @@ This POC provides **MCP Streamable HTTP** compliant servers that proxy requests 
 ### Option 1: Use the deployed Cloudflare Worker
 
 ```bash
-claude mcp add --transport http kukapay-proxy https://mcp.pavlovcik.com
+claude mcp add --transport http pavlovcik https://mcp.pavlovcik.com/mcp
 ```
 
 ### Option 2: Run locally for development
@@ -36,8 +36,15 @@ claude mcp add --transport http kukapay-proxy https://mcp.pavlovcik.com
 bun run src/bridge/server.js
 
 # Add to Claude Code
-claude mcp add --transport http kukapay-local http://localhost:8081/mcp
+claude mcp add --transport http local-mcp http://localhost:8081/mcp
 ```
+
+### Troubleshooting Claude Code Connection
+
+If `claude mcp list` shows "Failed to connect", see [claude-mcp-list.md](claude-mcp-list.md) for detailed troubleshooting guide. Key requirements:
+- Server must accept and echo back protocol version `2024-11-05`
+- Must handle `notifications/initialized` method
+- Must return proper JSON-RPC 2.0 responses
 
 ## Testing
 
