@@ -25,6 +25,10 @@ app.use((req, res, next) => {
   next();
 });
 
+// Store recent requests for debugging
+const recentRequests = [];
+const MAX_REQUESTS = 10;
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({
@@ -35,6 +39,14 @@ app.get('/health', (req, res) => {
     commit: (process.env.GITHUB_SHA || 'unknown').substring(0, 8),
     uptime: process.uptime(),
     activeSessions: sessions.size
+  });
+});
+
+// Debug endpoint to see recent requests
+app.get('/debug/requests', (req, res) => {
+  res.json({
+    recentRequests: recentRequests.slice(-10),
+    activeSessions: Array.from(sessions.keys())
   });
 });
 
@@ -137,7 +149,28 @@ const mcpServer = new MCPServer();
 
 // Origin validation for DNS rebinding protection
 const validateOrigin = (req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} from ${req.get('User-Agent')} with Accept: ${req.get('Accept')}`);
+  const timestamp = new Date().toISOString();
+  const logEntry = {
+    timestamp,
+    method: req.method,
+    path: req.path,
+    userAgent: req.get('User-Agent'),
+    accept: req.get('Accept'),
+    body: req.body,
+    headers: {
+      'mcp-protocol-version': req.get('MCP-Protocol-Version'),
+      'mcp-session-id': req.get('Mcp-Session-Id')
+    }
+  };
+  
+  console.log(`[${timestamp}] ${req.method} ${req.path} from ${req.get('User-Agent')} with Accept: ${req.get('Accept')}`);
+  
+  // Store in recent requests
+  recentRequests.push(logEntry);
+  if (recentRequests.length > MAX_REQUESTS) {
+    recentRequests.shift();
+  }
+  
   const origin = req.get('Origin');
   const host = req.get('Host');
   
