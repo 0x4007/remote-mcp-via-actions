@@ -189,59 +189,71 @@ const validateSession = (req, res, next) => {
   next();
 };
 
-// MCP endpoint - GET for server-initiated messages
+// MCP endpoint - GET for server-initiated messages (HTTP Streaming)
 app.get('/mcp', validateOrigin, validateProtocolVersion, validateSession, async (req, res) => {
-  try {
-    // Check if client accepts SSE
-    const accept = req.get('Accept') || '';
-    if (!accept.includes('text/event-stream')) {
-      return res.status(406).json({
-        jsonrpc: '2.0',
-        error: {
-          code: -32603,
-          message: 'Must accept text/event-stream'
-        }
-      });
-    }
-
-    console.log('Opening SSE stream for server-initiated messages');
-    
-    // Set up SSE headers
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Cache-Control'
+  const sessionId = req.get('Mcp-Session-Id');
+  
+  // Validate session exists for streaming
+  if (!sessionId || !sessions.has(sessionId)) {
+    return res.status(404).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32603,
+        message: 'Session not found - initialize session first'
+      }
     });
-
-    // For this demo, we'll keep the connection open but not send any server-initiated messages
-    // In a real implementation, you might send periodic updates or notifications
-    const keepAlive = setInterval(() => {
-      res.write(': keepalive\n\n');
-    }, 30000);
-
-    req.on('close', () => {
-      clearInterval(keepAlive);
-      console.log('SSE connection closed');
-    });
-
-    // Send initial connection acknowledgment
-    res.write('event: connected\n');
-    res.write('data: {"type": "connected"}\n\n');
-
-  } catch (error) {
-    console.error('GET /mcp error:', error.message);
-    if (!res.headersSent) {
-      res.status(500).json({
-        jsonrpc: '2.0',
-        error: {
-          code: -32603,
-          message: error.message
-        }
-      });
-    }
   }
+
+  // Set up HTTP streaming with chunked transfer encoding
+  res.writeHead(200, {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Transfer-Encoding': 'chunked',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Mcp-Session-Id, MCP-Protocol-Version, Last-Event-ID'
+  });
+
+  // Send initial connection confirmation
+  const connectionMessage = {
+    jsonrpc: '2.0',
+    method: 'notifications/message',
+    params: {
+      level: 'info',
+      logger: SERVER_NAME,
+      data: 'HTTP streaming connection established'
+    }
+  };
+  
+  res.write(JSON.stringify(connectionMessage) + '\n');
+
+  // Keep connection alive with periodic heartbeat
+  const heartbeatInterval = setInterval(() => {
+    if (!res.destroyed) {
+      const heartbeat = {
+        jsonrpc: '2.0',
+        method: 'notifications/message',
+        params: {
+          level: 'debug',
+          logger: SERVER_NAME,
+          data: `Heartbeat - Session: ${sessionId}`
+        }
+      };
+      res.write(JSON.stringify(heartbeat) + '\n');
+    }
+  }, 30000); // 30 second heartbeat
+
+  // Handle client disconnect
+  req.on('close', () => {
+    clearInterval(heartbeatInterval);
+    console.log(`HTTP streaming connection closed for session: ${sessionId}`);
+  });
+
+  req.on('error', (error) => {
+    clearInterval(heartbeatInterval);
+    console.error(`HTTP streaming error for session ${sessionId}:`, error.message);
+  });
 });
 
 // MCP endpoint - POST for client requests
