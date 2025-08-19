@@ -77,7 +77,7 @@ jobs:
         run: |
           echo "Starting Cloudflare tunnel..."
           # Use the named tunnel with token
-          nohup cloudflared tunnel --no-autoupdate run --token ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }} --url http://localhost:8080 > cloudflared.log 2>&1 &
+          nohup cloudflared tunnel --no-autoupdate run --token ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }} > cloudflared.log 2>&1 &
           TUNNEL_PID=$!
           echo "Cloudflare tunnel starting with PID: $TUNNEL_PID"
           
