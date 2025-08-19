@@ -1,0 +1,5 @@
+MCP Server Endpoints:
+Base URL: https://print-contrary-indicator-webcams.trycloudflare.com
+Health: https://print-contrary-indicator-webcams.trycloudflare.com/health
+Servers: https://print-contrary-indicator-webcams.trycloudflare.com/servers
+Zen tools: https://print-contrary-indicator-webcams.trycloudflare.com/servers/zen/tools
