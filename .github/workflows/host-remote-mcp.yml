@@ -73,34 +73,52 @@ jobs:
       - name: Set up Cloudflare Tunnel
         uses: AnimMouse/setup-cloudflared@v1
 
+      - name: Create Cloudflare config
+        run: |
+          # Create .cloudflared directory
+          mkdir -p ~/.cloudflared
+          
+          # Create config.yaml for named tunnel
+          cat > ~/.cloudflared/config.yaml << EOF
+          tunnel: 38da4b0b-410a-4e88-9eb5-4d800d4c2988
+          credentials-file: /home/runner/.cloudflared/38da4b0b-410a-4e88-9eb5-4d800d4c2988.json
+          
+          ingress:
+            - hostname: mcp.pavlovcik.com
+              service: http://localhost:8080
+            - service: http_status:404
+          EOF
+          
+          # Create credentials file from token
+          echo "${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}" | base64 -d > ~/.cloudflared/38da4b0b-410a-4e88-9eb5-4d800d4c2988.json
+
       - name: Start Cloudflare Tunnel
         run: |
-          echo "Starting Cloudflare tunnel..."
-          # Use quick tunnel for simplicity
-          nohup cloudflared tunnel --no-autoupdate --url http://localhost:8080 > cloudflared.log 2>&1 &
+          echo "Starting Cloudflare named tunnel..."
+          # Start named tunnel with config file
+          nohup cloudflared tunnel --no-autoupdate run > cloudflared.log 2>&1 &
           TUNNEL_PID=$!
           echo "Cloudflare tunnel starting with PID: $TUNNEL_PID"
           
-          # Wait for tunnel URL
-          echo "Waiting for tunnel URL..."
+          # Wait for tunnel to connect
+          echo "Waiting for tunnel connection..."
           for i in {1..30}; do
-            if grep -q "Your quick Tunnel has been created" cloudflared.log; then
-              echo "Tunnel created!"
+            if grep -q "Registered tunnel connection" cloudflared.log; then
+              echo "✅ Tunnel connected!"
               break
             fi
             echo "Waiting... ($i/30)"
-            sleep 1
+            sleep 2
           done
           
-          # Extract the tunnel URL
-          TUNNEL_URL=$(grep -o 'https://.*\.trycloudflare.com' cloudflared.log | head -1)
-          if [ -z "$TUNNEL_URL" ]; then
-            echo "❌ Failed to get tunnel URL!"
-            echo "Cloudflared logs:"
-            cat cloudflared.log
-            exit 1
+          # Check for errors
+          if grep -q "error" cloudflared.log; then
+            echo "⚠️ Errors detected in cloudflared logs:"
+            grep -i error cloudflared.log || true
           fi
           
+          # Set the tunnel URL
+          TUNNEL_URL="https://mcp.pavlovcik.com"
           echo "TUNNEL_URL=$TUNNEL_URL" >> $GITHUB_ENV
           echo "✅ Tunnel established at: $TUNNEL_URL"
           
@@ -131,25 +149,32 @@ jobs:
           
           # Test the public endpoint
           echo "Testing public endpoint..."
-          # Wait a bit for tunnel to be fully ready
-          sleep 5
-          HEALTH_RESPONSE=$(curl -s $TUNNEL_URL/health)
-          
-          # Check if response is JSON
-          if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
-            echo "✅ Public endpoint is working!"
-            echo "$HEALTH_RESPONSE" | jq
-          else
-            echo "❌ Public endpoint test failed!"
-            echo "Response was not JSON. Got:"
-            echo "$HEALTH_RESPONSE"
+          # Wait a bit for tunnel to be fully ready and DNS to propagate
+          echo "Waiting for DNS and tunnel to be ready..."
+          for i in {1..60}; do
+            HEALTH_RESPONSE=$(curl -s --max-time 5 $TUNNEL_URL/health 2>&1 || true)
             
-            # Check cloudflared logs
-            echo ""
-            echo "Cloudflared logs:"
-            tail -50 cloudflared.log
-            exit 1
-          fi
+            # Check if response is JSON
+            if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
+              echo "✅ Public endpoint is working!"
+              echo "$HEALTH_RESPONSE" | jq
+              break
+            else
+              if [ $i -eq 60 ]; then
+                echo "❌ Public endpoint test failed after 60 attempts!"
+                echo "Response was not JSON. Got:"
+                echo "$HEALTH_RESPONSE"
+                
+                # Check cloudflared logs
+                echo ""
+                echo "Cloudflared logs:"
+                tail -50 cloudflared.log
+                exit 1
+              fi
+              echo "Waiting for endpoint to be ready... ($i/60)"
+              sleep 2
+            fi
+          done
 
       - name: Upload tunnel info
         uses: actions/upload-artifact@v4
