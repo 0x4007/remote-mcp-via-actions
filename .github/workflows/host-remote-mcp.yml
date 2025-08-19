@@ -15,45 +15,47 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Clone Zen MCP Server repository
         run: git clone https://github.com/BeehiveInnovations/zen-mcp-server.git
-
-      - name: Install Zen MCP dependencies
-        working-directory: zen-mcp-server
-        run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; else echo "No requirements.txt found; assuming dependencies are handled internally."; fi
 
       - name: Configure Zen MCP environment
         working-directory: zen-mcp-server
         run: |
           # Configure Zen MCP with OpenRouter API key
-          echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_TOKEN }}" >> .env
+          echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_TOKEN }}" > .env
+
+      - name: Make run script executable
+        working-directory: zen-mcp-server
+        run: chmod +x run-server.sh
 
       - name: Start Zen MCP server in background
         working-directory: zen-mcp-server
         run: |
-          source venv/bin/activate
-          # Assuming Zen MCP is a FastAPI/uvicorn app; replace with actual start command
-          # From docs/community, it's often: uvicorn zen_mcp.server:app --host 0.0.0.0 --port 8080
-          nohup uvicorn zen_mcp.server:app --host 0.0.0.0 --port 8080 > mcp.log 2>&1 &
+          # Use the official run script which handles all setup
+          nohup ./run-server.sh > server.log 2>&1 &
           echo "Waiting for MCP server to start..."
-          for i in {1..30}; do
-            if curl -s http://localhost:8080 > /dev/null; then
-              echo "Zen MCP server started successfully on port 8080"
+          
+          # Wait for server to start (it may take time to install dependencies)
+          for i in {1..60}; do
+            if curl -s http://localhost:3000 > /dev/null 2>&1; then
+              echo "✅ Zen MCP server started successfully on port 3000"
               break
             fi
-            echo "Waiting... ($i/30)"
-            sleep 2
+            echo "Waiting... ($i/60)"
+            sleep 3
           done
+          
           # Check if server is actually running
-          if ! curl -s http://localhost:8080 > /dev/null; then
-            echo "Failed to start MCP server. Logs:"
-            cat mcp.log
+          if ! curl -s http://localhost:3000 > /dev/null 2>&1; then
+            echo "❌ Failed to start MCP server. Logs:"
+            cat server.log
+            echo "---"
+            if [ -f nohup.out ]; then
+              echo "Nohup output:"
+              cat nohup.out
+            fi
             exit 1
           fi
 
