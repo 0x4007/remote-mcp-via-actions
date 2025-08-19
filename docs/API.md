@@ -4,17 +4,22 @@ This document describes the API endpoints and MCP protocol implementation for th
 
 ## Overview
 
-The proxy servers implement the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) **Streamable HTTP transport** (specification 2025-03-26). They proxy requests to `test.kukapay.com/api/mcp` which provides a `calculate_sum` tool for testing.
+The MCP servers implement the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) **Streamable HTTP transport** (specification 2025-06-18). The servers provide:
 
-> **MCP Specification Reference**: This implementation is **fully compliant** with MCP Streamable HTTP transport located at [docs/mcp-spec/docs/specification/2025-03-26/basic/transports.mdx](docs/mcp-spec/docs/specification/2025-03-26/basic/transports.mdx). 
+- **Custom MCP Server**: Native implementation with `calculate_sum` and `echo` tools
+- **Proxy Mode**: Forwards requests to upstream MCP servers (e.g., `test.kukapay.com/api/mcp`)
+
+> **MCP Specification Reference**: This implementation is **fully compliant** with MCP Streamable HTTP transport located at [docs/mcp-spec/docs/specification/2025-06-18/basic/transports.mdx](docs/mcp-spec/docs/specification/2025-06-18/basic/transports.mdx). 
 
 ### ✅ **Streamable HTTP Transport Features**
 - **Single MCP endpoint** supporting GET, POST, and DELETE methods
 - **Content negotiation** with both JSON and SSE response modes  
 - **Accept header validation** ensuring proper client capabilities
 - **Session management** via `Mcp-Session-Id` headers
+- **Protocol version negotiation** via `MCP-Protocol-Version` headers
 - **Security features** including Origin validation for DNS rebinding protection
 - **Error handling** with proper HTTP status codes (406, 405, 404, etc.)
+- **Custom tools implementation** with JSON schema validation
 
 ## Base URLs
 
@@ -105,10 +110,12 @@ Health check endpoint for monitoring server status.
 ```json
 {
   "status": "healthy",
-  "target": "https://test.kukapay.com/api/mcp",
-  "version": "unknown",
+  "protocol": "2025-06-18",
+  "server": "remote-mcp-demo",
+  "version": "1.0.0",
   "commit": "unknown",
-  "uptime": 477.151587792
+  "uptime": 477.151587792,
+  "activeSessions": 0
 }
 ```
 
