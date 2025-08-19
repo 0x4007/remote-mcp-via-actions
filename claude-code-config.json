@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "zen-remote": {
+      "command": "python3",
+      "args": [
+        "/Users/nv/repos/0x4007/remote-mcp-via-actions/mcp-http-bridge/client.py"
+      ],
+      "env": {
+        "MCP_BRIDGE_URL": "https://mcp.pavlovcik.com",
+        "MCP_SERVER_NAME": "zen"
+      }
+    },
+    "fetch-remote": {
+      "command": "python3",
+      "args": [
+        "/Users/nv/repos/0x4007/remote-mcp-via-actions/mcp-http-bridge/client.py"
+      ],
+      "env": {
+        "MCP_BRIDGE_URL": "https://mcp.pavlovcik.com",
+        "MCP_SERVER_NAME": "fetch"
+      }
+    }
+  }
+}

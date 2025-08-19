@@ -1,4 +1,4 @@
-name: Host Remote Zen MCP
+name: Host Remote MCP Servers
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 360  # Max 6 hours (360 minutes)
 
     steps:
-      - name: Checkout repository (optional if no custom code needed)
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -17,74 +17,56 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Clone Zen MCP Server repository
-        run: git clone https://github.com/BeehiveInnovations/zen-mcp-server.git
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
 
-      - name: Configure Zen MCP environment
-        working-directory: zen-mcp-server
+      - name: Install MCP HTTP Bridge dependencies
+        working-directory: mcp-http-bridge
         run: |
-          # Configure Zen MCP with OpenRouter API key
-          echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_TOKEN }}" > .env
+          pip install -r requirements.txt
 
-      - name: Make run script executable
-        working-directory: zen-mcp-server
-        run: chmod +x run-server.sh
+      - name: Make install script executable
+        run: chmod +x install-mcp-servers.sh
 
-      - name: Start Zen MCP server
-        working-directory: zen-mcp-server
+      - name: Install MCP servers
         run: |
-          # The run-server.sh script sets up the environment but exits
-          # We need to run the actual server after setup
-          echo "Setting up Zen MCP environment..."
-          ./run-server.sh || true
+          # Set up environment
+          export OPENROUTER_API_KEY=${{ secrets.OPENROUTER_TOKEN }}
           
-          # Check if server.py exists
-          if [ ! -f server.py ]; then
-            echo "server.py not found, looking for alternative startup files..."
-            ls -la
-            find . -name "*.py" -type f | head -20
-          fi
+          # Run installation script
+          ./install-mcp-servers.sh
+
+      - name: Start MCP HTTP Bridge
+        working-directory: mcp-http-bridge
+        run: |
+          # Start the bridge server
+          echo "Starting MCP HTTP Bridge..."
+          nohup python server.py > bridge.log 2>&1 &
+          BRIDGE_PID=$!
+          echo "Bridge started with PID: $BRIDGE_PID"
           
-          # Now start the actual server
-          echo "Starting MCP server..."
-          source .venv/bin/activate 2>/dev/null || source venv/bin/activate 2>/dev/null || true
-          
-          # Start the server directly using server.py
-          if [ -f server.py ]; then
-            nohup python server.py > server.log 2>&1 &
-          else
-            # Try alternate paths
-            echo "Trying to find the correct startup script..."
-            if [ -f src/server.py ]; then
-              nohup python src/server.py > server.log 2>&1 &
-            elif [ -f zen_mcp/server.py ]; then
-              nohup python zen_mcp/server.py > server.log 2>&1 &
-            else
-              echo "Could not find server startup script!"
-              exit 1
-            fi
-          fi
-          
-          SERVER_PID=$!
-          echo "Server started with PID: $SERVER_PID"
-          
-          # Wait for server to start
-          echo "Waiting for MCP server to start..."
+          # Wait for bridge to start
+          echo "Waiting for bridge to start..."
           for i in {1..30}; do
-            if curl -s http://localhost:3000 > /dev/null 2>&1; then
-              echo "✅ Zen MCP server started successfully on port 3000"
+            if curl -s http://localhost:8080/health > /dev/null 2>&1; then
+              echo "✅ MCP HTTP Bridge started successfully"
+              
+              # List available servers
+              echo "Available MCP servers:"
+              curl -s http://localhost:8080/servers | jq
               break
             fi
             echo "Waiting... ($i/30)"
             sleep 2
           done
           
-          # Check if server is actually running
-          if ! curl -s http://localhost:3000 > /dev/null 2>&1; then
-            echo "❌ Failed to start MCP server. Logs:"
-            cat server.log
-            echo "---"
-            ps aux | grep -E "python|server" | grep -v grep
+          # Verify bridge is running
+          if ! curl -s http://localhost:8080/health > /dev/null 2>&1; then
+            echo "❌ Failed to start MCP HTTP Bridge"
+            echo "Bridge logs:"
+            cat bridge.log
             exit 1
           fi
 
@@ -96,19 +78,40 @@ jobs:
       - name: Display endpoint info
         run: |
           echo "==================================="
-          echo "Zen MCP is now accessible at:"
+          echo "MCP servers are now accessible at:"
           echo "https://mcp.pavlovcik.com"
           echo "==================================="
+          echo ""
+          echo "Available endpoints:"
+          echo "  Health: https://mcp.pavlovcik.com/health"
+          echo "  Servers: https://mcp.pavlovcik.com/servers"
+          echo "  Zen tools: https://mcp.pavlovcik.com/servers/zen/tools"
+          echo ""
+          
           # Test the public endpoint
           sleep 5
-          if curl -s https://mcp.pavlovcik.com > /dev/null 2>&1; then
+          if curl -s https://mcp.pavlovcik.com/health > /dev/null 2>&1; then
             echo "✅ Public endpoint is working!"
           else
             echo "⚠️  Public endpoint may still be initializing..."
           fi
 
-      - name: Keep server running for up to 6 hours
+      - name: Keep server running
         run: |
-          # Sleep for 5 hours 50 minutes to stay under 6-hour limit (accounting for startup time)
-          sleep 21000
-          echo "Server shutting down after timeout"
+          echo "MCP servers running. Will stay active for up to 6 hours..."
+          
+          # Monitor the bridge process
+          BRIDGE_PID=$(pgrep -f "python server.py")
+          
+          # Sleep for 5 hours 50 minutes, checking every 5 minutes
+          for i in {1..70}; do
+            if ! kill -0 $BRIDGE_PID 2>/dev/null; then
+              echo "⚠️ Bridge process died! Logs:"
+              cat mcp-http-bridge/bridge.log
+              exit 1
+            fi
+            echo "[$(date)] Still running... ($(($i * 5)) minutes elapsed)"
+            sleep 300  # 5 minutes
+          done
+          
+          echo "Shutting down after timeout"

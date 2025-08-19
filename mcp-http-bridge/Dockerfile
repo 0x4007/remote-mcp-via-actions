@@ -1,0 +1,25 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy bridge server files
+COPY requirements.txt .
+COPY server.py .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Create directory for MCP servers
+RUN mkdir -p /mcp-servers
+
+# Expose port
+EXPOSE 8080
+
+# Run the bridge server
+CMD ["python", "server.py"]
