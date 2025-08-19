@@ -131,6 +131,8 @@ jobs:
           
           # Test the public endpoint
           echo "Testing public endpoint..."
+          # Wait a bit for tunnel to be fully ready
+          sleep 5
           HEALTH_RESPONSE=$(curl -s $TUNNEL_URL/health)
           
           # Check if response is JSON
