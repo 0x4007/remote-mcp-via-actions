@@ -96,6 +96,9 @@ jobs:
           
           echo "TUNNEL_URL=$TUNNEL_URL" >> $GITHUB_ENV
           echo "✅ Tunnel established at: $TUNNEL_URL"
+          
+          # Also save to a file for debugging
+          echo "$TUNNEL_URL" > tunnel_url.txt
 
       - name: Display endpoint info
         run: |
@@ -110,6 +113,15 @@ jobs:
           echo "  Zen tools: $TUNNEL_URL/servers/zen/tools"
           echo ""
           
+          # Save endpoints to file
+          cat > endpoints.txt << EOF
+          MCP Server Endpoints:
+          Base URL: $TUNNEL_URL
+          Health: $TUNNEL_URL/health
+          Servers: $TUNNEL_URL/servers
+          Zen tools: $TUNNEL_URL/servers/zen/tools
+          EOF
+          
           # Test the public endpoint
           if curl -s $TUNNEL_URL/health > /dev/null 2>&1; then
             echo "✅ Public endpoint is working!"
@@ -118,6 +130,15 @@ jobs:
             echo "❌ Public endpoint test failed!"
             exit 1
           fi
+
+      - name: Upload tunnel info
+        uses: actions/upload-artifact@v4
+        with:
+          name: tunnel-info
+          path: |
+            tunnel_url.txt
+            endpoints.txt
+            cloudflared.log
 
       - name: Keep server running
         run: |
