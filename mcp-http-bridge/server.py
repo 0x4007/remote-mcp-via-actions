@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from sse_starlette.sse import EventSourceResponse
 import uvicorn
 
 logging.basicConfig(level=logging.INFO)
@@ -335,7 +336,7 @@ async def mcp_endpoint(request: dict):
     
     # Extract method and params from JSON-RPC request
     method = request.get("method")
-    params = request.get("params", {})
+    params = request.get("params")  # Don't default to {}, let it be None
     request_id = request.get("id")
     
     if not method:
