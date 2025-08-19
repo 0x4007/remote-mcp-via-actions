@@ -41,6 +41,9 @@ jobs:
       - name: Start MCP HTTP Bridge
         working-directory: mcp-http-bridge
         run: |
+          # Export environment variables needed by MCP servers
+          export OPENROUTER_API_KEY=${{ secrets.OPENROUTER_TOKEN }}
+          
           # Start the bridge server
           echo "Starting MCP HTTP Bridge..."
           nohup python server.py > bridge.log 2>&1 &

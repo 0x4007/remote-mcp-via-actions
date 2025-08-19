@@ -41,6 +41,9 @@ jobs:
       - name: Start MCP HTTP Bridge
         working-directory: mcp-http-bridge
         run: |
+          # Export environment variables needed by MCP servers
+          export OPENROUTER_API_KEY=${{ secrets.OPENROUTER_TOKEN }}
+          
           # Start the bridge server
           echo "Starting MCP HTTP Bridge..."
           nohup python server.py > bridge.log 2>&1 &
@@ -152,6 +155,43 @@ jobs:
             tunnel_url.txt
             endpoints.txt
             cloudflared.log
+
+      - name: Update tunnel status
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create a simple JSON file with the current tunnel URL
+          cat > tunnel-status.json << EOF
+          {
+            "url": "$TUNNEL_URL",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "status": "active",
+            "endpoints": {
+              "health": "$TUNNEL_URL/health",
+              "servers": "$TUNNEL_URL/servers",
+              "zen_tools": "$TUNNEL_URL/servers/zen/tools"
+            }
+          }
+          EOF
+          
+          # Create a simple HTML redirect page
+          cat > index.html << EOF
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>MCP Server Redirect</title>
+              <meta http-equiv="refresh" content="0; url=$TUNNEL_URL">
+              <script>
+                window.location.href = "$TUNNEL_URL";
+              </script>
+          </head>
+          <body>
+              <p>Redirecting to MCP server at <a href="$TUNNEL_URL">$TUNNEL_URL</a></p>
+          </body>
+          </html>
+          EOF
+          
+          echo "Tunnel status saved"
 
       - name: Keep server running
         run: |

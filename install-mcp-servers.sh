@@ -36,7 +36,10 @@ cat > "$MCP_DIR/config.json" << EOF
       "name": "zen",
       "command": "$MCP_DIR/zen-mcp-server/.zen_venv/bin/python",
       "args": ["$MCP_DIR/zen-mcp-server/server.py"],
-      "cwd": "$MCP_DIR/zen-mcp-server"
+      "cwd": "$MCP_DIR/zen-mcp-server",
+      "env": {
+        "OPENROUTER_API_KEY": "${OPENROUTER_API_KEY}"
+      }
     }
   ]
 }

@@ -1,5 +1,5 @@
 MCP Server Endpoints:
-Base URL: https://within-october-countries-receives.trycloudflare.com
-Health: https://within-october-countries-receives.trycloudflare.com/health
-Servers: https://within-october-countries-receives.trycloudflare.com/servers
-Zen tools: https://within-october-countries-receives.trycloudflare.com/servers/zen/tools
+Base URL: https://cook-internationally-barbados-trinity.trycloudflare.com
+Health: https://cook-internationally-barbados-trinity.trycloudflare.com/health
+Servers: https://cook-internationally-barbados-trinity.trycloudflare.com/servers
+Zen tools: https://cook-internationally-barbados-trinity.trycloudflare.com/servers/zen/tools
