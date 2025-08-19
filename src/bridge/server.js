@@ -88,7 +88,7 @@ class MCPServer {
 
   async handleInitialize(params) {
     const { protocolVersion, capabilities = {}, clientInfo = {} } = params;
-    
+
     // Version negotiation - support all common versions
     const supportedVersions = ['2024-11-05', '2025-03-26', '2025-06-18'];
     if (!supportedVersions.includes(protocolVersion)) {
@@ -115,7 +115,7 @@ class MCPServer {
 
   async handleCallTool(params) {
     const { name, arguments: args = {} } = params;
-    
+
     switch (name) {
       case 'calculate_sum':
         if (!args.numbers || !Array.isArray(args.numbers)) {
@@ -128,7 +128,7 @@ class MCPServer {
             text: `The sum of ${args.numbers.join(' + ')} = ${sum}`
           }]
         };
-        
+
       case 'echo':
         if (!args.message) {
           throw new Error('Invalid arguments: message required');
@@ -139,7 +139,7 @@ class MCPServer {
             text: `Echo: ${args.message}`
           }]
         };
-        
+
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -163,22 +163,22 @@ const validateOrigin = (req, res, next) => {
       'mcp-session-id': req.get('Mcp-Session-Id')
     }
   };
-  
+
   console.log(`[${timestamp}] ${req.method} ${req.path} from ${req.get('User-Agent')} with Accept: ${req.get('Accept')}`);
-  
+
   // Store in recent requests
   recentRequests.push(logEntry);
   if (recentRequests.length > MAX_REQUESTS) {
     recentRequests.shift();
   }
-  
+
   const origin = req.get('Origin');
   const host = req.get('Host');
-  
+
   // Allow localhost connections for development
   const allowedOrigins = ['http://localhost', 'https://localhost', 'http://127.0.0.1', 'https://127.0.0.1'];
   const isLocalhost = host && (host.startsWith('localhost:') || host.startsWith('127.0.0.1:'));
-  
+
   if (origin && !allowedOrigins.some(allowed => origin.startsWith(allowed)) && !isLocalhost) {
     console.warn('Blocked request from potentially malicious origin:', origin);
     return res.status(403).json({
@@ -206,7 +206,7 @@ const validateProtocolVersion = (req, res, next) => {
 const validateSession = (req, res, next) => {
   const sessionId = req.get('Mcp-Session-Id');
   const isInitialize = req.body && req.body.method === 'initialize';
-  
+
   if (!isInitialize && sessionId && !sessions.has(sessionId)) {
     return res.status(404).json({
       jsonrpc: '2.0',
@@ -219,11 +219,11 @@ const validateSession = (req, res, next) => {
   next();
 };
 
-// MCP endpoint - GET for server-initiated messages (HTTP Streaming)
-app.get('/mcp', validateOrigin, validateProtocolVersion, async (req, res) => {
+// Common handler for MCP GET requests
+const handleMCPGet = async (req, res) => {
   const sessionId = req.get('Mcp-Session-Id');
   const accept = req.get('Accept') || '';
-  
+
   // Special case: If no Accept header or Accept: */*, return a simple health response
   // This allows Claude Code to check if the endpoint exists
   if (!accept || accept === '*/*' || accept.includes('application/json')) {
@@ -236,7 +236,7 @@ app.get('/mcp', validateOrigin, validateProtocolVersion, async (req, res) => {
       }
     });
   }
-  
+
   // Per MCP spec: GET endpoint MUST either return SSE stream or 405 Method Not Allowed
   // Check if client wants SSE stream
   if (!accept.includes('text/event-stream')) {
@@ -283,7 +283,7 @@ app.get('/mcp', validateOrigin, validateProtocolVersion, async (req, res) => {
       data: `HTTP streaming connection established - Session: ${activeSessionId}`
     }
   };
-  
+
   res.write(JSON.stringify(connectionMessage) + '\n');
 
   // Keep connection alive with periodic heartbeat
@@ -312,10 +312,13 @@ app.get('/mcp', validateOrigin, validateProtocolVersion, async (req, res) => {
     clearInterval(heartbeatInterval);
     console.error(`HTTP streaming error for session ${activeSessionId}:`, error.message);
   });
-});
+};
 
-// MCP endpoint - POST for client requests
-app.post('/mcp', validateOrigin, validateProtocolVersion, validateSession, async (req, res) => {
+// MCP endpoint - GET for server-initiated messages (HTTP Streaming)
+app.get('/', validateOrigin, validateProtocolVersion, handleMCPGet);
+
+// Common handler for MCP POST requests
+const handleMCPPost = async (req, res) => {
   try {
     console.log('Received MCP request:', JSON.stringify(req.body, null, 2));
 
@@ -362,7 +365,7 @@ app.post('/mcp', validateOrigin, validateProtocolVersion, validateSession, async
           });
           console.log(`Created new session: ${sessionId}`);
           break;
-          
+
         case 'initialized':
         case 'notifications/initialized':
           // Just acknowledge the notification
@@ -371,20 +374,20 @@ app.post('/mcp', validateOrigin, validateProtocolVersion, validateSession, async
           }
           result = {};
           break;
-          
+
         case 'tools/list':
           result = await mcpServer.handleListTools();
           break;
-          
+
         case 'tools/call':
           result = await mcpServer.handleCallTool(params || {});
           break;
-          
+
         case 'ping':
           // Handle ping request per MCP spec
           result = {};
           break;
-          
+
         default:
           throw new Error(`Method not found: ${method}`);
       }
@@ -411,7 +414,7 @@ app.post('/mcp', validateOrigin, validateProtocolVersion, validateSession, async
 
     } catch (methodError) {
       console.error(`Error handling ${method}:`, methodError.message);
-      
+
       // Handle notifications (no id)
       if (id === null || id === undefined) {
         return res.status(400).json({
@@ -434,8 +437,8 @@ app.post('/mcp', validateOrigin, validateProtocolVersion, validateSession, async
     }
 
   } catch (error) {
-    console.error('POST /mcp error:', error.message);
-    
+    console.error('POST / error:', error.message);
+
     res.status(500).json({
       jsonrpc: '2.0',
       id: req.body?.id || null,
@@ -445,10 +448,13 @@ app.post('/mcp', validateOrigin, validateProtocolVersion, validateSession, async
       }
     });
   }
-});
+};
 
-// DELETE endpoint for session termination
-app.delete('/mcp', validateOrigin, validateProtocolVersion, async (req, res) => {
+// MCP endpoint - POST for client requests
+app.post('/', validateOrigin, validateProtocolVersion, validateSession, handleMCPPost);
+
+// Common handler for MCP DELETE requests
+const handleMCPDelete = async (req, res) => {
   try {
     const sessionId = req.headers['mcp-session-id'];
     if (!sessionId) {
@@ -476,7 +482,7 @@ app.delete('/mcp', validateOrigin, validateProtocolVersion, async (req, res) => 
     }
 
   } catch (error) {
-    console.error('DELETE /mcp error:', error.message);
+    console.error('DELETE / error:', error.message);
     res.status(500).json({
       jsonrpc: '2.0',
       error: {
@@ -485,7 +491,10 @@ app.delete('/mcp', validateOrigin, validateProtocolVersion, async (req, res) => 
       }
     });
   }
-});
+};
+
+// DELETE endpoint for session termination
+app.delete('/', validateOrigin, validateProtocolVersion, handleMCPDelete);
 
 // Start server
 app.listen(port, () => {

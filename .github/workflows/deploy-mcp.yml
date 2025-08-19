@@ -33,20 +33,20 @@ jobs:
           export GITHUB_SHA=${{ github.sha }}
           export DEPLOYMENT_VERSION="${{ github.sha }}"
           export DEPLOYMENT_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          
+
           # Start the custom MCP server
           echo "Starting Custom MCP Server..."
           echo "Deployment version: ${GITHUB_SHA:0:8}"
           nohup node server.js > bridge.log 2>&1 &
           BRIDGE_PID=$!
           echo "Custom MCP Server started with PID: $BRIDGE_PID"
-          
+
           # Wait for server to start
           echo "Waiting for server to start..."
           for i in {1..30}; do
             if curl -s http://localhost:8081/health > /dev/null 2>&1; then
               echo "✅ Custom MCP Server started successfully"
-              
+
               # Display server info
               echo "Server info:"
               curl -s http://localhost:8081/health | jq
@@ -55,7 +55,7 @@ jobs:
             echo "Waiting... ($i/30)"
             sleep 2
           done
-          
+
           # Verify server is running
           if ! curl -s http://localhost:8081/health > /dev/null 2>&1; then
             echo "❌ Failed to start Custom MCP Server"
@@ -73,7 +73,7 @@ jobs:
           nohup cloudflared tunnel --no-autoupdate --url http://localhost:8081 > logs/cloudflared.log 2>&1 &
           TUNNEL_PID=$!
           echo "Cloudflare tunnel starting with PID: $TUNNEL_PID"
-          
+
           # Wait for tunnel URL
           echo "Waiting for tunnel URL..."
           for i in {1..30}; do
@@ -84,19 +84,19 @@ jobs:
             echo "Waiting... ($i/30)"
             sleep 2
           done
-          
+
           # Extract the tunnel URL
           TUNNEL_URL=$(grep -o 'https://[^[:space:]]*\.trycloudflare\.com' logs/cloudflared.log | head -1)
-          
+
           if [ -z "$TUNNEL_URL" ]; then
             echo "❌ Failed to get tunnel URL"
             cat logs/cloudflared.log
             exit 1
           fi
-          
+
           echo "TUNNEL_URL=$TUNNEL_URL" >> $GITHUB_ENV
           echo "✅ Tunnel established at: $TUNNEL_URL"
-          
+
           # Save to file
           echo "$TUNNEL_URL" > tmp/tunnel_url.txt
 
@@ -115,30 +115,30 @@ jobs:
           echo ""
           echo "Available endpoints:"
           echo "  Health: $TUNNEL_URL/health"
-          echo "  MCP Protocol: $TUNNEL_URL/mcp"
+          echo "  MCP Protocol: $TUNNEL_URL/"
           echo ""
           echo "Via custom domain (after DNS propagates):"
           echo "  Health: https://mcp.pavlovcik.com/health"
-          echo "  MCP Protocol: https://mcp.pavlovcik.com/mcp"
+          echo "  MCP Protocol: https://mcp.pavlovcik.com/"
           echo ""
           echo "Available tools: calculate_sum, echo"
           echo ""
-          
+
           # Save endpoints to file
           cat > tmp/endpoints.txt << EOF
           Custom MCP Server Endpoints:
           Base URL: $TUNNEL_URL
           Health: $TUNNEL_URL/health
-          MCP Protocol: $TUNNEL_URL/mcp
+          MCP Protocol: $TUNNEL_URL/
           Tools: calculate_sum, echo
           EOF
-          
+
           # Test the public endpoint
           echo "Testing public endpoint..."
           sleep 5
-          
+
           HEALTH_RESPONSE=$(curl -s --max-time 10 $TUNNEL_URL/health 2>&1 || true)
-          
+
           if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
             echo "✅ Public endpoint is working!"
             echo "$HEALTH_RESPONSE" | jq
@@ -174,15 +174,15 @@ jobs:
             "status": "active",
             "endpoints": {
               "health": "$TUNNEL_URL/health",
-              "mcp": "$TUNNEL_URL/mcp"
+              "mcp": "$TUNNEL_URL/"
             },
             "tools": ["calculate_sum", "echo"],
             "protocol": "MCP Streamable HTTP 2025-06-18"
           }
           EOF
-          
+
           echo "Tunnel status saved"
-          
+
           # Commit and push to GitHub Pages
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
@@ -197,21 +197,21 @@ jobs:
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           echo "Updating Cloudflare Worker KV with tunnel URL..."
-          
+
           # KV namespace ID for MCP_TUNNEL_URL
           KV_NAMESPACE_ID="7e1605c08a3c407c9f8a331f25b5c117"
-          
+
           # Update KV with tunnel URL
           KV_RESPONSE=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/storage/kv/namespaces/$KV_NAMESPACE_ID/values/url" \
             -H "Authorization: Bearer $CF_API_TOKEN" \
             -H "Content-Type: text/plain" \
             --data "$TUNNEL_URL")
-          
+
           echo "✅ Worker KV updated with tunnel URL"
           echo "mcp.pavlovcik.com will now proxy to $TUNNEL_URL"
           echo ""
           echo "Claude Code MCP configuration:"
-          echo "claude mcp add --transport http custom-demo https://mcp.pavlovcik.com/mcp"
+          echo "claude mcp add --transport http custom-demo https://mcp.pavlovcik.com/"
 
       - name: KV Update Skipped
         if: env.ENDPOINT_TEST_PASSED == 'false'
@@ -228,10 +228,10 @@ jobs:
           echo "Protocol: MCP Streamable HTTP 2025-06-18"
           echo ""
           echo "Server will keep running until the GitHub Actions timeout..."
-          
+
           # Monitor the server process
           BRIDGE_PID=$(pgrep -f "node server.js")
-          
+
           # Keep checking if the process is alive
           while kill -0 $BRIDGE_PID 2>/dev/null; do
             # Check health endpoint
@@ -241,10 +241,10 @@ jobs:
               SESSIONS=$(echo "$HEALTH_RESPONSE" | jq -r '.activeSessions // 0')
               echo "[$(date)] Server running - Uptime: ${UPTIME}s, Active sessions: ${SESSIONS}"
             fi
-            
+
             sleep 60  # Check every minute
           done
-          
+
           echo "Server has shut down"
 
       - name: Deployment Failed - Cleanup
