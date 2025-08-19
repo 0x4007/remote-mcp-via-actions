@@ -33,16 +33,35 @@ ZONE_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=pavlov
 
 echo "Zone ID: $ZONE_ID"
 
-# Create DNS record
-DNS_RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
+# Create/Update DNS record
+# First try to find existing record
+EXISTING_RECORD=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=mcp.pavlovcik.com&type=CNAME" \
   -H "Authorization: Bearer $API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"type\": \"CNAME\",
-    \"name\": \"mcp\",
-    \"content\": \"$TUNNEL_ID.cfargotunnel.com\",
-    \"proxied\": true
-  }")
+  -H "Content-Type: application/json" | jq -r '.result[0].id')
+
+if [ "$EXISTING_RECORD" != "null" ]; then
+  echo "Updating existing DNS record..."
+  DNS_RESPONSE=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$EXISTING_RECORD" \
+    -H "Authorization: Bearer $API_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"type\": \"CNAME\",
+      \"name\": \"mcp\",
+      \"content\": \"a24d53ae-6578-49b0-9cd0-eaec26692eb7.cfargotunnel.com\",
+      \"proxied\": true
+    }")
+else
+  echo "Creating new DNS record..."
+  DNS_RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
+    -H "Authorization: Bearer $API_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"type\": \"CNAME\",
+      \"name\": \"mcp\",
+      \"content\": \"a24d53ae-6578-49b0-9cd0-eaec26692eb7.cfargotunnel.com\",
+      \"proxied\": true
+    }")
+fi
 
 echo "DNS record created"
 
