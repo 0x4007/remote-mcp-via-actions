@@ -73,37 +73,13 @@ jobs:
       - name: Set up Cloudflare Tunnel
         uses: AnimMouse/setup-cloudflared@v1
 
-      - name: Create Cloudflare config
-        run: |
-          # Create .cloudflared directory
-          mkdir -p ~/.cloudflared
-          
-          # Create config.yaml for named tunnel
-          cat > ~/.cloudflared/config.yaml << EOF
-          tunnel: 38da4b0b-410a-4e88-9eb5-4d800d4c2988
-          credentials-file: /home/runner/.cloudflared/38da4b0b-410a-4e88-9eb5-4d800d4c2988.json
-          
-          ingress:
-            - hostname: mcp.pavlovcik.com
-              service: http://localhost:8080
-            - service: http_status:404
-          EOF
-          
-          # Create credentials file from token
-          # Cloudflared expects a JSON file with specific structure
-          cat > ~/.cloudflared/38da4b0b-410a-4e88-9eb5-4d800d4c2988.json << EOF
-          {
-            "AccountTag": "3075108016c07e677f6bf7128201ce79",
-            "TunnelSecret": "${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}",
-            "TunnelID": "38da4b0b-410a-4e88-9eb5-4d800d4c2988"
-          }
-          EOF
-
       - name: Start Cloudflare Tunnel
+        env:
+          TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
         run: |
           echo "Starting Cloudflare named tunnel..."
-          # Start named tunnel with config file
-          nohup cloudflared tunnel --no-autoupdate run > cloudflared.log 2>&1 &
+          # Use the tunnel token directly - it contains all necessary configuration
+          nohup cloudflared tunnel --no-autoupdate run --token "$TUNNEL_TOKEN" > cloudflared.log 2>&1 &
           TUNNEL_PID=$!
           echo "Cloudflare tunnel starting with PID: $TUNNEL_PID"
           
