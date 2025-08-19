@@ -190,18 +190,18 @@ const validateSession = (req, res, next) => {
 };
 
 // MCP endpoint - GET for server-initiated messages (HTTP Streaming)
-app.get('/mcp', validateOrigin, validateProtocolVersion, validateSession, async (req, res) => {
+app.get('/mcp', validateOrigin, validateProtocolVersion, async (req, res) => {
   const sessionId = req.get('Mcp-Session-Id');
   
-  // Validate session exists for streaming
+  // If no session ID provided, create a new session for streaming
+  let activeSessionId = sessionId;
   if (!sessionId || !sessions.has(sessionId)) {
-    return res.status(404).json({
-      jsonrpc: '2.0',
-      error: {
-        code: -32603,
-        message: 'Session not found - initialize session first'
-      }
+    activeSessionId = uuidv4();
+    sessions.set(activeSessionId, {
+      created: new Date(),
+      protocolVersion: req.get('MCP-Protocol-Version') || MCP_PROTOCOL_VERSION
     });
+    console.log(`Created new streaming session: ${activeSessionId}`);
   }
 
   // Set up HTTP streaming with chunked transfer encoding
@@ -210,6 +210,7 @@ app.get('/mcp', validateOrigin, validateProtocolVersion, validateSession, async 
     'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
     'Transfer-Encoding': 'chunked',
+    'Mcp-Session-Id': activeSessionId,
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, Mcp-Session-Id, MCP-Protocol-Version, Last-Event-ID'
@@ -222,7 +223,7 @@ app.get('/mcp', validateOrigin, validateProtocolVersion, validateSession, async 
     params: {
       level: 'info',
       logger: SERVER_NAME,
-      data: 'HTTP streaming connection established'
+      data: `HTTP streaming connection established - Session: ${activeSessionId}`
     }
   };
   
@@ -237,7 +238,7 @@ app.get('/mcp', validateOrigin, validateProtocolVersion, validateSession, async 
         params: {
           level: 'debug',
           logger: SERVER_NAME,
-          data: `Heartbeat - Session: ${sessionId}`
+          data: `Heartbeat - Session: ${activeSessionId}`
         }
       };
       res.write(JSON.stringify(heartbeat) + '\n');
@@ -247,12 +248,12 @@ app.get('/mcp', validateOrigin, validateProtocolVersion, validateSession, async 
   // Handle client disconnect
   req.on('close', () => {
     clearInterval(heartbeatInterval);
-    console.log(`HTTP streaming connection closed for session: ${sessionId}`);
+    console.log(`HTTP streaming connection closed for session: ${activeSessionId}`);
   });
 
   req.on('error', (error) => {
     clearInterval(heartbeatInterval);
-    console.error(`HTTP streaming error for session ${sessionId}:`, error.message);
+    console.error(`HTTP streaming error for session ${activeSessionId}:`, error.message);
   });
 });
 
