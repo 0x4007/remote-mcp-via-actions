@@ -192,7 +192,28 @@ const validateSession = (req, res, next) => {
 // MCP endpoint - GET for server-initiated messages (HTTP Streaming)
 app.get('/mcp', validateOrigin, validateProtocolVersion, async (req, res) => {
   const sessionId = req.get('Mcp-Session-Id');
+  const accept = req.get('Accept') || '';
   
+  // Check if this is a health check request (no session ID and short timeout expected)
+  if (!sessionId && !accept.includes('text/event-stream')) {
+    // Return a simple health check response for Claude Code
+    return res.json({
+      jsonrpc: '2.0',
+      result: {
+        status: 'healthy',
+        capabilities: {
+          streaming: true,
+          serverInitiated: true
+        },
+        serverInfo: {
+          name: SERVER_NAME,
+          version: SERVER_VERSION,
+          protocolVersion: MCP_PROTOCOL_VERSION
+        }
+      }
+    });
+  }
+
   // If no session ID provided, create a new session for streaming
   let activeSessionId = sessionId;
   if (!sessionId || !sessions.has(sessionId)) {
