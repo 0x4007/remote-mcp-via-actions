@@ -44,7 +44,7 @@ elif [ "$STATUS_CODE" = "503" ]; then
     echo "✗ Server is not deployed (503 Service Unavailable)"
     echo ""
     echo "To start the server, run:"
-    echo "  ./dispatch-mcp.sh"
+    echo "  ./scripts/deploy.sh"
 else
     echo "✗ Server returned unexpected status: $STATUS_CODE"
 fi

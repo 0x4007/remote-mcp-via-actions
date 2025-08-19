@@ -9,8 +9,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy bridge server files
-COPY requirements.txt .
-COPY server.py .
+COPY ../src/bridge/requirements.txt .
+COPY ../src/bridge/server.py .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt

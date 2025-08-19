@@ -23,12 +23,16 @@ jobs:
           node-version: '18'
 
       - name: Install MCP HTTP Bridge dependencies
-        working-directory: mcp-http-bridge
+        working-directory: src/bridge
         run: |
           pip install -r requirements.txt
 
+      - name: Create required directories
+        run: |
+          mkdir -p logs temp
+          
       - name: Make install script executable
-        run: chmod +x install-mcp-servers.sh
+        run: chmod +x scripts/install-servers.sh
 
       - name: Install MCP servers
         run: |
@@ -36,10 +40,10 @@ jobs:
           export OPENROUTER_API_KEY=${{ secrets.OPENROUTER_TOKEN }}
           
           # Run installation script
-          ./install-mcp-servers.sh
+          ./scripts/install-servers.sh
 
       - name: Start MCP HTTP Bridge
-        working-directory: mcp-http-bridge
+        working-directory: src/bridge
         run: |
           # Export environment variables needed by MCP servers
           export OPENROUTER_API_KEY=${{ secrets.OPENROUTER_TOKEN }}
@@ -83,14 +87,14 @@ jobs:
       - name: Start Cloudflare Quick Tunnel
         run: |
           echo "Starting Cloudflare quick tunnel..."
-          nohup cloudflared tunnel --no-autoupdate --url http://localhost:8080 > cloudflared.log 2>&1 &
+          nohup cloudflared tunnel --no-autoupdate --url http://localhost:8080 > logs/cloudflared.log 2>&1 &
           TUNNEL_PID=$!
           echo "Cloudflare tunnel starting with PID: $TUNNEL_PID"
           
           # Wait for tunnel URL
           echo "Waiting for tunnel URL..."
           for i in {1..30}; do
-            if grep -q "https://.*\.trycloudflare\.com" cloudflared.log; then
+            if grep -q "https://.*\.trycloudflare\.com" logs/cloudflared.log; then
               echo "✅ Tunnel URL found!"
               break
             fi
@@ -99,11 +103,11 @@ jobs:
           done
           
           # Extract the tunnel URL
-          TUNNEL_URL=$(grep -o 'https://[^[:space:]]*\.trycloudflare\.com' cloudflared.log | head -1)
+          TUNNEL_URL=$(grep -o 'https://[^[:space:]]*\.trycloudflare\.com' logs/cloudflared.log | head -1)
           
           if [ -z "$TUNNEL_URL" ]; then
             echo "❌ Failed to get tunnel URL"
-            cat cloudflared.log
+            cat logs/cloudflared.log
             exit 1
           fi
           
@@ -111,7 +115,7 @@ jobs:
           echo "✅ Tunnel established at: $TUNNEL_URL"
           
           # Save to file
-          echo "$TUNNEL_URL" > tunnel_url.txt
+          echo "$TUNNEL_URL" > temp/tunnel_url.txt
 
       - name: Display endpoint info
         run: |
@@ -138,7 +142,7 @@ jobs:
           echo ""
           
           # Save endpoints to file
-          cat > endpoints.txt << EOF
+          cat > temp/endpoints.txt << EOF
           MCP Server Endpoints:
           Base URL: $TUNNEL_URL
           Health: $TUNNEL_URL/health
@@ -167,9 +171,9 @@ jobs:
         with:
           name: tunnel-info
           path: |
-            tunnel_url.txt
-            endpoints.txt
-            cloudflared.log
+            temp/tunnel_url.txt
+            temp/endpoints.txt
+            logs/cloudflared.log
 
       - name: Update tunnel status
         env:

@@ -115,7 +115,7 @@ Once configured, you can use commands like:
 - `CLOUDFLARE_ACCOUNT_ID` - Your Cloudflare account ID
 
 ### Cloudflare Setup (if using your own domain)
-1. Create a Cloudflare Worker with the code from `worker.js`
+1. Create a Cloudflare Worker with the code from `src/cloudflare/worker.js`
 2. Create a KV namespace called `TUNNEL_KV`
 3. Bind the Worker to your domain
 4. Update the workflow with your KV namespace ID
