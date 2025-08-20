@@ -115,12 +115,31 @@ export class UniversalSetupManager {
       const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
       const serverName = path.basename(workingDir);
       
-      // Use CI-specific setup script if available in CI environments
+      // Special handling for zen-mcp-server in CI
       if (isCI && serverName === 'zen-mcp-server') {
         const ciSetupPath = path.join(workingDir, 'ci-setup.sh');
         if (fs.existsSync(ciSetupPath)) {
           console.log(`🚀 Using CI-optimized setup script for ${serverName}`);
           scriptPath = ciSetupPath;
+        } else {
+          // Create a minimal CI setup script on the fly if ci-setup.sh doesn't exist
+          console.log(`📝 Creating minimal CI setup script for ${serverName}`);
+          const minimalSetupScript = `#!/bin/bash
+set -e
+cd "$(dirname "$0")"
+echo "Setting up zen-mcp-server for CI..."
+python3 -m venv .zen_venv
+.zen_venv/bin/python -m pip install --upgrade pip wheel setuptools --quiet
+.zen_venv/bin/python -m pip install -r requirements.txt --quiet
+if [[ ! -f ".env" ]] && [[ -f ".env.example" ]]; then
+  cp .env.example .env
+fi
+mkdir -p logs
+echo "✅ zen-mcp-server CI setup complete"
+`;
+          const tempScriptPath = path.join(workingDir, 'temp-ci-setup.sh');
+          fs.writeFileSync(tempScriptPath, minimalSetupScript, { mode: 0o755 });
+          scriptPath = tempScriptPath;
         }
       }
       
