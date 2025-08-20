@@ -145,7 +145,8 @@ export class ServerDiscoveryEngine {
         ...process.env as Record<string, string>,
         PYTHONPATH: '.',
         PYTHONUNBUFFERED: '1',
-        PYTHONDONTWRITEBYTECODE: '1'
+        PYTHONDONTWRITEBYTECODE: '1',
+        LOG_LEVEL: 'INFO'
       }
     };
   }
