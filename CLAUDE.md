@@ -916,3 +916,4 @@ MCP servers can expose prompts that become available as slash commands in Claude
   * Server and prompt names are normalized (spaces become underscores)
 </Tip>
 - When testing GitHub Action CI, never wait for more than 15 seconds.
+- `.github/workflows/deploy-mcp.yml` While this workflow is `in_progress`, that simply means that the server is available and accessible because the MCP server is deployed on-demand and is hosted on the GitHub Action. After about 30 seconds, the server is available at mcp.pavlovcik.com, which tunnels to the GitHub Action.
