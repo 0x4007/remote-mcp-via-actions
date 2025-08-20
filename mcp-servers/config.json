@@ -16,18 +16,19 @@
       "maxInstances": 2
     },
     "zen-mcp-server": {
-      "enabled": true,
+      "enabled": false,
       "command": "python",
       "args": ["server.py"],
       "env": {
         "PYTHONPATH": ".",
-        "LOG_LEVEL": "INFO"
+        "LOG_LEVEL": "INFO",
+        "_comment": "Requires API keys (OPENAI_API_KEY, etc.) to function. Enable locally with your keys."
       },
       "timeout": 60000,
       "maxInstances": 1,
       "restartOnCrash": true,
       "requiresStatefulConnection": true,
-      "description": "AI-powered MCP server with multiple model providers for advanced coding assistance"
+      "description": "AI-powered MCP server with multiple model providers for advanced coding assistance (DISABLED: requires API keys)"
     }
   },
   "defaults": {
