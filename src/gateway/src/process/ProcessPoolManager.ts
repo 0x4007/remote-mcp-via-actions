@@ -164,12 +164,15 @@ export class ProcessPool extends EventEmitter {
   
   private async sendRequestToProcess(processInfo: ProcessInfo, request: MCPRequest): Promise<MCPResponse> {
     return new Promise((resolve, reject) => {
+      // Handle requests without IDs (some logging methods don't have IDs)
+      const requestId = request.id?.toString() ?? `req_${Date.now()}_${Math.random()}`;
+      
       const timeout = setTimeout(() => {
-        this.pendingRequests.delete(request.id!.toString());
-        reject(new Error(`Request timeout: ${request.id}`));
+        this.pendingRequests.delete(requestId);
+        reject(new Error(`Request timeout: ${requestId}`));
       }, this.config.acquireTimeoutMillis);
       
-      this.pendingRequests.set(request.id!.toString(), {
+      this.pendingRequests.set(requestId, {
         resolve,
         reject,
         timeout

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct MCP Gateway Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .error { background: #fee; border-left: 4px solid #f00; }
+        .success { background: #efe; border-left: 4px solid #0f0; }
+        pre { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Direct MCP Gateway Connection Test</h1>
+    
+    <button onclick="testConnection()">Test Tools List</button>
+    <button onclick="testCalculator()">Test Calculator (5+3)</button>
+    <button onclick="testZenModels()">Test Zen List Models</button>
+    
+    <div id="results"></div>
+
+    <script>
+        const gatewayUrl = 'http://localhost:8080/mcp';
+        
+        async function makeRequest(method, params = {}) {
+            const payload = {
+                jsonrpc: '2.0',
+                method: method,
+                params: params,
+                id: Date.now()
+            };
+            
+            try {
+                const response = await fetch(gatewayUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                return { success: true, data };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+        
+        function displayResult(title, result) {
+            const div = document.createElement('div');
+            div.className = result.success ? 'result success' : 'result error';
+            
+            if (result.success) {
+                div.innerHTML = `<h3>${title} ✅</h3><pre>${JSON.stringify(result.data, null, 2)}</pre>`;
+            } else {
+                div.innerHTML = `<h3>${title} ❌</h3><pre>Error: ${result.error}</pre>`;
+            }
+            
+            document.getElementById('results').appendChild(div);
+        }
+        
+        async function testConnection() {
+            const result = await makeRequest('tools/list');
+            if (result.success && result.data.result && result.data.result.tools) {
+                const toolCount = result.data.result.tools.length;
+                const tools = result.data.result.tools.map(t => t.name).slice(0, 5);
+                displayResult(`Tools List (${toolCount} tools)`, {
+                    success: true,
+                    data: { count: toolCount, firstFive: tools }
+                });
+            } else {
+                displayResult('Tools List', result);
+            }
+        }
+        
+        async function testCalculator() {
+            const result = await makeRequest('tools/call', {
+                name: 'example-calculator__add',
+                arguments: { a: 5, b: 3 }
+            });
+            displayResult('Calculator Test', result);
+        }
+        
+        async function testZenModels() {
+            const result = await makeRequest('tools/call', {
+                name: 'zen-mcp-server__listmodels',
+                arguments: { model: 'o3' }
+            });
+            if (result.success && result.data.result && result.data.result.content) {
+                displayResult('Zen Models', {
+                    success: true,
+                    data: { preview: result.data.result.content[0].text.substring(0, 200) + '...' }
+                });
+            } else {
+                displayResult('Zen Models', result);
+            }
+        }
+    </script>
+</body>
+</html>

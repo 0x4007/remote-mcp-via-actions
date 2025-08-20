@@ -6,6 +6,8 @@ export interface MCPServerDescriptor {
   args: string[];
   environment: Record<string, string>;
   protocol?: string;
+  setupScript?: string;  // Path to setup script (setup.sh, run-server.sh, install.sh)
+  needsSetup?: boolean;   // Whether setup script should be executed
 }
 
 export interface MCPRequest {

@@ -32,26 +32,48 @@ export class ServerDiscoveryEngine {
   }
   
   private async detectServer(name: string, serverPath: string): Promise<MCPServerDescriptor | null> {
+    // Detect setup script (Universal Setup Script Convention)
+    const setupScript = this.detectSetupScript(serverPath);
+    
     // Priority: Binary > Python > Node.js (as recommended by expert analysis)
+    let descriptor: MCPServerDescriptor | null = null;
     
     // Check for binary executable
     const binaryPath = path.join(serverPath, name);
     if (fs.existsSync(binaryPath) && this.isExecutable(binaryPath)) {
-      return this.createBinaryDescriptor(name, serverPath, binaryPath);
+      descriptor = this.createBinaryDescriptor(name, serverPath, binaryPath);
     }
-    
     // Check for Python server
-    if (fs.existsSync(path.join(serverPath, 'server.py')) || 
+    else if (fs.existsSync(path.join(serverPath, 'server.py')) || 
         fs.existsSync(path.join(serverPath, 'pyproject.toml'))) {
-      return this.createPythonDescriptor(name, serverPath);
+      descriptor = this.createPythonDescriptor(name, serverPath);
     }
-    
     // Check for Node.js server
-    if (fs.existsSync(path.join(serverPath, 'package.json'))) {
-      return this.createNodeDescriptor(name, serverPath);
+    else if (fs.existsSync(path.join(serverPath, 'package.json'))) {
+      descriptor = this.createNodeDescriptor(name, serverPath);
     }
     
-    return null;
+    // Add setup script information to descriptor
+    if (descriptor && setupScript) {
+      descriptor.setupScript = setupScript;
+      descriptor.needsSetup = true;
+    }
+    
+    return descriptor;
+  }
+  
+  private detectSetupScript(serverPath: string): string | undefined {
+    // Universal Setup Script Convention - Priority order
+    const setupScripts = ['setup.sh', 'run-server.sh', 'install.sh'];
+    
+    for (const script of setupScripts) {
+      const scriptPath = path.join(serverPath, script);
+      if (fs.existsSync(scriptPath) && this.isExecutable(scriptPath)) {
+        return scriptPath;
+      }
+    }
+    
+    return undefined;
   }
   
   private createNodeDescriptor(name: string, serverPath: string): MCPServerDescriptor {

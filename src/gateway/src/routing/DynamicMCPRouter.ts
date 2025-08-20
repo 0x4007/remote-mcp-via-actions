@@ -11,8 +11,6 @@ export class DynamicMCPRouter {
     servers: MCPServerDescriptor[], 
     processManager: ProcessPoolManager
   ): void {
-    // Add CORS and common middleware
-    this.setupMiddleware(app);
     
     // Configure routes for each discovered server
     for (const server of servers) {
@@ -23,22 +21,6 @@ export class DynamicMCPRouter {
     this.setupAggregatedRoutes(app, servers, processManager);
   }
   
-  private setupMiddleware(app: express.Application): void {
-    app.use(express.json({ limit: '10mb' }));
-    
-    // CORS middleware
-    app.use((req, res, next) => {
-      res.header('Access-Control-Allow-Origin', '*');
-      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id, MCP-Protocol-Version');
-      
-      if (req.method === 'OPTIONS') {
-        res.sendStatus(200);
-        return;
-      }
-      next();
-    });
-  }
   
   private setupServerRoutes(
     app: express.Application, 
@@ -201,6 +183,17 @@ export class DynamicMCPRouter {
             jsonrpc: '2.0',
             id,
             error: { code: -32600, message: 'Invalid Request: jsonrpc must be "2.0"' }
+          });
+          return;
+        }
+        
+        // Handle logging methods (MCP Inspector compatibility)
+        if (method === 'logging/setLevel') {
+          // Just return success - we don't need to implement actual logging level changes
+          res.json({
+            jsonrpc: '2.0',
+            id,
+            result: {}
           });
           return;
         }

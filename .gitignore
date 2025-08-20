@@ -52,4 +52,5 @@ docs/.jekyll-cache/
 .swarm/
 .claude-flow/
 node_modules/
-server.pid
+*.pid
+mcp-servers/example-calculator/.gateway-ready

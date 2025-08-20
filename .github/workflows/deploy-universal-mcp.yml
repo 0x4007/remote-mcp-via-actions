@@ -1,4 +1,10 @@
 name: Deploy Universal MCP Gateway
+# 
+# Universal MCP Gateway with Zero-Configuration Auto-Discovery
+# 
+# This workflow automatically discovers and sets up any MCP servers through
+# the Universal Setup Script Convention. No server-specific configuration 
+# required - just add servers as git submodules.
 
 on:
   workflow_dispatch:
@@ -46,24 +52,27 @@ jobs:
         run: |
           npm install
 
-      - name: Install Python Dependencies (for discovered Python servers)
+      - name: Install Universal Setup Dependencies
         run: |
-          # Install dependencies for any Python MCP servers discovered
-          for dir in mcp-servers/*/; do
-            if [[ -f "$dir/requirements.txt" ]]; then
-              echo "Installing dependencies for $(basename "$dir")"
-              pip install -r "$dir/requirements.txt"
-            fi
-          done
+          # Install uv for Python servers that may need it
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          
+          # Install basic dependencies that setup scripts might need
+          sudo apt-get update
+          sudo apt-get install -y build-essential
 
       - name: Start Universal MCP Gateway
         working-directory: src/gateway
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENROUTER_TOKEN: ${{ secrets.OPENROUTER_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           PORT: 8080
         run: |
-          echo "Starting Universal MCP Gateway..."
+          echo "🚀 Starting Universal MCP Gateway with auto-setup..."
 
           # Ensure API key is available
           if [[ -z "${OPENROUTER_API_KEY}" && -n "${OPENROUTER_TOKEN}" ]]; then
@@ -75,28 +84,30 @@ jobs:
             exit 1
           fi
 
-          # Start gateway in background
+          # Start gateway (it will auto-discover and setup all MCP servers)
           nohup npm start > gateway.log 2>&1 &
           GATEWAY_PID=$!
           echo "Gateway started with PID: $GATEWAY_PID"
+          echo "🔧 Gateway is auto-discovering and setting up MCP servers..."
 
-          # Wait for gateway to start
-          for i in {1..30}; do
+          # Wait for gateway to complete setup and start
+          for i in {1..60}; do
             if curl -s http://localhost:8080/health > /dev/null 2>&1; then
-              echo "✅ Gateway started successfully"
+              echo "✅ Gateway started successfully with auto-setup complete"
               break
             fi
-            echo "Waiting for gateway... ($i/30)"
-            sleep 2
+            echo "Waiting for gateway setup... ($i/60)"
+            sleep 3
           done
 
           if ! curl -s http://localhost:8080/health > /dev/null 2>&1; then
-            echo "❌ Gateway failed to start"
+            echo "❌ Gateway failed to start or setup failed"
+            echo "📋 Gateway logs:"
             cat gateway.log
             exit 1
           fi
 
-          echo "📊 Gateway status:"
+          echo "📊 Gateway status with discovered servers:"
           curl -s http://localhost:8080/health | jq .
 
       - name: Set up Cloudflare Tunnel
