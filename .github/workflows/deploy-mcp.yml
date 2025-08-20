@@ -159,7 +159,7 @@ jobs:
           echo "Starting Custom MCP Server..."
           echo "Deployment version: ${GITHUB_SHA:0:8}"
           echo "OPENROUTER_API_KEY is ${OPENROUTER_API_KEY:+set}${OPENROUTER_API_KEY:-not set}"
-          nohup node server.js > bridge.log 2>&1 &
+          nohup env OPENROUTER_API_KEY="${OPENROUTER_API_KEY}" node server.js > bridge.log 2>&1 &
           BRIDGE_PID=$!
           echo "Custom MCP Server started with PID: $BRIDGE_PID"
 
