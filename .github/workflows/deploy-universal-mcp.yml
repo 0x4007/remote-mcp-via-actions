@@ -1,9 +1,9 @@
 name: Deploy Universal MCP Gateway
-# 
+#
 # Universal MCP Gateway with Zero-Configuration Auto-Discovery
-# 
+#
 # This workflow automatically discovers and sets up any MCP servers through
-# the Universal Setup Script Convention. No server-specific configuration 
+# the Universal Setup Script Convention. No server-specific configuration
 # required - just add servers as git submodules.
 
 on:
@@ -12,13 +12,13 @@ on:
       timeout_hours:
         description: 'Server timeout in hours'
         required: false
-        default: '0.25'
+        default: '0.5'
         type: string
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 30
     concurrency:
       group: deploy-universal-mcp-${{ github.ref }}
       cancel-in-progress: true
@@ -57,7 +57,7 @@ jobs:
           # Install uv for Python servers that may need it
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          
+
           # Install basic dependencies that setup scripts might need
           sudo apt-get update
           sudo apt-get install -y build-essential
@@ -179,18 +179,23 @@ jobs:
       - name: Keep Gateway Running
         if: env.ENDPOINT_WORKING == 'true'
         run: |
-          echo "🔄 Gateway will run for ${{ github.event.inputs.timeout_hours || '6' }} hours"
+          echo "🔄 Gateway is running with built-in inactivity timeout"
           echo "⏱️  Server auto-shuts down after 1 hour of inactivity"
+          echo "🔍 Health check requests do not reset the timeout timer"
           echo ""
 
-          # Monitor gateway health
+          # Monitor gateway health and let it self-manage shutdown
           while true; do
             HEALTH=$(curl -s http://localhost:8080/health 2>/dev/null || echo "failed")
             if echo "$HEALTH" | jq -e . > /dev/null 2>&1; then
               SERVERS=$(echo "$HEALTH" | jq -r '.servers // 0')
-              echo "[$(date)] Gateway healthy - $SERVERS servers active"
+              UPTIME=$(echo "$HEALTH" | jq -r '.uptime // 0')
+              SESSIONS=$(echo "$HEALTH" | jq -r '.activeSessions // 0')
+              TIMEOUT_SECS=$(echo "$HEALTH" | jq -r '.timeUntilTimeout // 0')
+              TIMEOUT_MINS=$((TIMEOUT_SECS / 60))
+              echo "[$(date)] Gateway healthy - Uptime: ${UPTIME}s, Active sessions: ${SESSIONS}, Timeout in: ${TIMEOUT_MINS}m"
             else
-              echo "[$(date)] Gateway unhealthy - may have shut down"
+              echo "[$(date)] Gateway has shut down or become unreachable"
               break
             fi
             sleep 300 # Check every 5 minutes
