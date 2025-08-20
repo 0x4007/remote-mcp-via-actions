@@ -157,23 +157,33 @@ jobs:
         working-directory: src/bridge
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_TOKEN: ${{ secrets.OPENROUTER_TOKEN }}
         run: |
           # Export environment variables
           export GITHUB_SHA=${{ github.sha }}
           export DEPLOYMENT_VERSION="${{ github.sha }}"
           export DEPLOYMENT_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           
-          # Ensure OPENROUTER_API_KEY is available
+          # Ensure OPENROUTER_API_KEY is available - try both secrets
           echo "DEBUG: Raw OPENROUTER_API_KEY value: '${OPENROUTER_API_KEY}'"
           echo "DEBUG: OPENROUTER_API_KEY length: ${#OPENROUTER_API_KEY}"
-          if [ -z "${OPENROUTER_API_KEY}" ]; then
-            echo "❌ ERROR: OPENROUTER_API_KEY is not set or empty!"
-            echo "Please ensure OPENROUTER_API_KEY is added to GitHub Secrets with a valid value"
-            echo "❌ DEPLOYMENT WILL FAIL - Zen server requires API key"
-          else
+          echo "DEBUG: Raw OPENROUTER_TOKEN value: '${OPENROUTER_TOKEN}'"
+          echo "DEBUG: OPENROUTER_TOKEN length: ${#OPENROUTER_TOKEN}"
+          
+          # Use OPENROUTER_TOKEN if OPENROUTER_API_KEY is empty
+          if [ -z "${OPENROUTER_API_KEY}" ] && [ -n "${OPENROUTER_TOKEN}" ]; then
+            echo "🔄 OPENROUTER_API_KEY is empty, using OPENROUTER_TOKEN instead"
+            export OPENROUTER_API_KEY="${OPENROUTER_TOKEN}"
+            echo "✅ Using OPENROUTER_TOKEN as API key (length: ${#OPENROUTER_TOKEN})"
+            echo "✅ First 10 chars: ${OPENROUTER_TOKEN:0:10}..."
+          elif [ -n "${OPENROUTER_API_KEY}" ]; then
             echo "✅ OPENROUTER_API_KEY is set (length: ${#OPENROUTER_API_KEY})"
             echo "✅ First 10 chars: ${OPENROUTER_API_KEY:0:10}..."
             export OPENROUTER_API_KEY="${OPENROUTER_API_KEY}"
+          else
+            echo "❌ ERROR: Both OPENROUTER_API_KEY and OPENROUTER_TOKEN are empty!"
+            echo "Please ensure at least one is added to GitHub Secrets with a valid value"
+            echo "❌ DEPLOYMENT WILL FAIL - Zen server requires API key"
           fi
 
           # Debug: Check what servers are available
