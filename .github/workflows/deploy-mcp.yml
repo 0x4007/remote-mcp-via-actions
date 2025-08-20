@@ -158,11 +158,13 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENROUTER_TOKEN: ${{ secrets.OPENROUTER_TOKEN }}
+          CUSTOM_MODELS_CONFIG_PATH: ${{ github.workspace }}/config/custom_models_override.json
         run: |
           # Export environment variables
           export GITHUB_SHA=${{ github.sha }}
           export DEPLOYMENT_VERSION="${{ github.sha }}"
           export DEPLOYMENT_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          export CUSTOM_MODELS_CONFIG_PATH="${{ github.workspace }}/config/custom_models_override.json"
 
           # Ensure OPENROUTER_API_KEY is available - try both secrets
           echo "DEBUG: Raw OPENROUTER_API_KEY value: '${OPENROUTER_API_KEY}'"

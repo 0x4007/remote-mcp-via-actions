@@ -1,12 +1,15 @@
 # Documentation
 
-This directory contains documentation for the Remote MCP via Actions POC project.
+This directory contains comprehensive documentation for the Remote MCP via Actions project.
 
-## Files
+## Core Documentation
 
 - **[../README.md](../README.md)** - Project overview and quick start guide
-- **[API.md](API.md)** - Detailed API documentation and examples
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Deployment guide for local and Cloudflare environments
+- **[SETUP.md](SETUP.md)** - Complete setup and configuration guide
+- **[API.md](API.md)** - Detailed API documentation and examples  
+- **[TESTING.md](TESTING.md)** - Testing strategies and tools
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions
+- **[LESSONS-LEARNED.md](LESSONS-LEARNED.md)** - Key insights and best practices
 
 ## MCP Specification
 

@@ -23,6 +23,16 @@ This system provides a **unified MCP HTTP endpoint** that aggregates tools from 
 - **21+ Tools Available** - From multiple servers (main, calculator, Zen)
 - **Claude Code Integration** - Direct integration via HTTP transport
 
+## Documentation
+
+📚 **Comprehensive documentation is available in the [docs/](docs/) directory:**
+
+- **[Setup Guide](docs/SETUP.md)** - Complete setup and configuration guide
+- **[API Documentation](docs/API.md)** - Detailed API reference and examples
+- **[Testing Guide](docs/TESTING.md)** - Testing strategies and tools
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Lessons Learned](docs/LESSONS-LEARNED.md)** - Key insights and best practices
+
 ## Quick Start
 
 ### 1. Add MCP Servers as Submodules

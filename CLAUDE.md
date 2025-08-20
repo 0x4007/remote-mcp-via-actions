@@ -915,3 +915,4 @@ MCP servers can expose prompts that become available as slash commands in Claude
   * Prompt results are injected directly into the conversation
   * Server and prompt names are normalized (spaces become underscores)
 </Tip>
+- When testing GitHub Action CI, never wait for more than 15 seconds.
