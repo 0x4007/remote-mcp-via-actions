@@ -63,10 +63,21 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
       - name: Install MCP Server dependencies
         working-directory: src/bridge
         run: |
           npm install
+
+      - name: Install Zen server dependencies
+        if: hashFiles('mcp-servers/zen-mcp-server/requirements.txt') != ''
+        working-directory: mcp-servers/zen-mcp-server
+        run: |
+          pip install -r requirements.txt
 
       - name: Create required directories
         run: |
@@ -167,7 +178,7 @@ jobs:
           echo "  Health: https://mcp.pavlovcik.com/health"
           echo "  MCP Protocol: https://mcp.pavlovcik.com/"
           echo ""
-          echo "Available tools: calculate_sum, echo"
+          echo "Available tools: 21+ tools from main, calculator, and Zen servers"
           echo ""
 
           # Save endpoints to file
@@ -222,7 +233,8 @@ jobs:
               "health": "$TUNNEL_URL/health",
               "mcp": "$TUNNEL_URL/"
             },
-            "tools": ["calculate_sum", "echo"],
+            "tools": ["21+ tools from multiple servers"],
+            "servers": ["main", "example-calculator", "zen-mcp-server"],
             "protocol": "MCP Streamable HTTP 2025-06-18"
           }
           EOF
@@ -270,15 +282,15 @@ jobs:
         # Always keep running, even if endpoint test fails (for debugging)
         run: |
           echo "Custom MCP Server running at: $TUNNEL_URL"
-          echo "Available tools: calculate_sum, echo"
+          echo "Available tools: 21+ tools from main, calculator, and Zen servers"
           echo "Protocol: MCP Streamable HTTP 2025-06-18"
           echo ""
-          echo "⏱️  Server has a 15-minute inactivity timeout"
-          echo "The server will automatically shut down if no MCP requests are received for 15 minutes."
+          echo "⏱️  Server has a 1-hour inactivity timeout"
+          echo "The server will automatically shut down if no MCP requests are received for 1 hour."
           echo "Health check requests do not reset the timeout timer."
           echo ""
           echo "Server will keep running until either:"
-          echo "  - 15 minutes of inactivity (no MCP requests)"
+          echo "  - 1 hour of inactivity (no MCP requests)"
           echo "  - GitHub Actions timeout (6 hours max)"
           echo ""
 
