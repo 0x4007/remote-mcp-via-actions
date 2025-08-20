@@ -81,6 +81,8 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           PORT: 8080
+          CI: true
+          GITHUB_ACTIONS: true
         run: |
           echo "🚀 Starting Universal MCP Gateway with auto-setup..."
 
