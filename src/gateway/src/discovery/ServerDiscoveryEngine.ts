@@ -48,16 +48,52 @@ export class ServerDiscoveryEngine {
     // Detect setup script (Universal Setup Script Convention)
     const setupScript = this.detectSetupScript(serverPath);
     
+    // Special case: If we have both a binary wrapper and Python files,
+    // check if the binary is actually a bash wrapper for Python
+    let isPythonWrapper = false;
+    if (hasBinary && hasPython) {
+      try {
+        const binaryContent = fs.readFileSync(binaryPath, 'utf8');
+        // Check if it's a bash script that runs Python
+        if (binaryContent.includes('#!/bin/bash') && 
+            (binaryContent.includes('python') || binaryContent.includes('.venv'))) {
+          isPythonWrapper = true;
+          console.log(`  - Detected Python wrapper script`);
+        }
+      } catch (e) {
+        // Not a text file, likely a real binary
+      }
+    }
+    
     // Universal Priority: Binary > Python > Node.js
+    // But treat Python wrappers as Python servers
     let descriptor: MCPServerDescriptor | null = null;
     
-    if (hasBinary) {
+    if (hasBinary && !isPythonWrapper) {
       console.log(`🔧 Using binary runtime for ${name}`);
       descriptor = this.createBinaryDescriptor(name, serverPath, binaryPath);
     }
-    else if (hasPython) {
+    else if (hasPython || isPythonWrapper) {
       console.log(`🐍 Using Python runtime for ${name}`);
       descriptor = this.createPythonDescriptor(name, serverPath);
+      
+      // If there's a Python wrapper and virtual environment exists, use the wrapper
+      if (isPythonWrapper) {
+        const venvPaths = [
+          path.join(serverPath, '.zen_venv'),
+          path.join(serverPath, 'venv'),
+          path.join(serverPath, '.venv')
+        ];
+        
+        const hasVenv = venvPaths.some(venvPath => fs.existsSync(venvPath));
+        if (hasVenv) {
+          // Virtual environment exists, use the wrapper script
+          console.log(`  - Using wrapper script with existing virtual environment`);
+          descriptor.runtime = 'binary';
+          descriptor.entrypoint = binaryPath;
+          descriptor.args = [];
+        }
+      }
     }
     else if (hasNodeJs) {
       console.log(`📦 Using Node.js runtime for ${name}`);
