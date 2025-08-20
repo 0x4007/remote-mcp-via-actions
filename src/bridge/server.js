@@ -673,7 +673,7 @@ app.listen(port, async () => {
   console.log(`Protocol version: ${MCP_PROTOCOL_VERSION}`);
   console.log(`Server name: ${SERVER_NAME} v${SERVER_VERSION}`);
   console.log(`Available tools: ${mcpServer.tools.map(t => t.name).join(', ')}`);
-  console.log(`Inactivity timeout: ${INACTIVITY_TIMEOUT_MS / 60000} minutes`);
+  console.log(`Inactivity timeout: ${INACTIVITY_TIMEOUT_MS / 3600000} hour(s)`);
   
   // Start the inactivity timer
   updateActivityTime();
