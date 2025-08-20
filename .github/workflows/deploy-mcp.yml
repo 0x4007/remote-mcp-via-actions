@@ -9,6 +9,50 @@ jobs:
     timeout-minutes: 360  # Max 6 hours (360 minutes)
 
     steps:
+      - name: Cancel existing runs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Checking for existing in-progress workflow runs..."
+          
+          # Get the current run ID to avoid canceling ourselves
+          CURRENT_RUN_ID=${{ github.run_id }}
+          echo "Current run ID: $CURRENT_RUN_ID"
+          
+          # Get all in-progress runs for this workflow
+          IN_PROGRESS_RUNS=$(gh run list \
+            --workflow deploy-mcp.yml \
+            --repo ${{ github.repository }} \
+            --status in_progress \
+            --json databaseId,name,createdAt \
+            -q '.[] | select(.databaseId != '$CURRENT_RUN_ID') | .databaseId')
+          
+          if [ -z "$IN_PROGRESS_RUNS" ]; then
+            echo "✓ No other in-progress workflow runs found."
+          else
+            echo "Found in-progress runs to cancel:"
+            echo "$IN_PROGRESS_RUNS"
+            echo ""
+            
+            # Cancel each running workflow
+            echo "$IN_PROGRESS_RUNS" | while read -r RUN_ID; do
+              if [ ! -z "$RUN_ID" ]; then
+                echo "Cancelling run $RUN_ID..."
+                gh run cancel $RUN_ID --repo ${{ github.repository }} || true
+              fi
+            done
+            
+            echo ""
+            echo "✓ All previous runs cancelled. Proceeding with new deployment."
+            
+            # Wait a moment for cancellations to process
+            sleep 5
+          fi
+          
+          echo ""
+          echo "Current workflow status:"
+          gh run list --workflow deploy-mcp.yml --repo ${{ github.repository }} --limit 5
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
