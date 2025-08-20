@@ -24,7 +24,7 @@ export class ServerConfigManager {
     private configsDir: string;
     
     constructor(configsDir?: string) {
-        this.configsDir = configsDir || path.join(process.cwd(), 'src', 'gateway', 'configs');
+        this.configsDir = configsDir || path.join(process.cwd(), 'configs');
     }
 
     /**

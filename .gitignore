@@ -54,3 +54,4 @@ docs/.jekyll-cache/
 node_modules/
 *.pid
 mcp-servers/example-calculator/.gateway-ready
+*.ready

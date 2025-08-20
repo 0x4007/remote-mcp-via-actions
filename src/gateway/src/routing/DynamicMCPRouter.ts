@@ -55,6 +55,10 @@ export class DynamicMCPRouter {
     app.get('/mcp', this.createAggregatedGetHandler(servers, processManager));
     app.post('/mcp', this.createAggregatedPostHandler(servers, processManager));
     app.delete('/mcp', this.createDeleteHandler('aggregated'));
+    
+    // MCP Inspector proxy server endpoints
+    app.get('/config', this.createConfigHandler(servers));
+    app.get('/health', this.createHealthHandler(servers, processManager));
   }
   
   private createGetHandler(serverName: string, processManager: ProcessPoolManager) {
@@ -187,6 +191,43 @@ export class DynamicMCPRouter {
           return;
         }
         
+        // Handle initialization for aggregated endpoint
+        if (method === 'initialize') {
+          const sessionId = uuidv4();
+          this.activeSessions.set(sessionId, {
+            created: new Date(),
+            protocolVersion: params?.protocolVersion || '2024-11-05'
+          });
+
+          res.setHeader('Mcp-Session-Id', sessionId);
+          res.json({
+            jsonrpc: '2.0',
+            id,
+            result: {
+              protocolVersion: params?.protocolVersion || '2024-11-05',
+              capabilities: {
+                tools: {},
+                logging: {},
+                sampling: {},
+                elicitation: {},
+                roots: { listChanged: true }
+              },
+              serverInfo: {
+                name: 'universal-mcp-gateway',
+                version: '1.0.0'
+              }
+            }
+          });
+          return;
+        }
+
+        // Handle notifications (no response needed)
+        if (method?.startsWith('notifications/')) {
+          // Notifications don't require a response, just acknowledge
+          res.status(200).end();
+          return;
+        }
+
         // Handle logging methods (MCP Inspector compatibility)
         if (method === 'logging/setLevel') {
           // Just return success - we don't need to implement actual logging level changes
@@ -331,6 +372,43 @@ export class DynamicMCPRouter {
         res.status(404).json({
           jsonrpc: '2.0',
           error: { code: -32603, message: 'Session not found' }
+        });
+      }
+    };
+  }
+
+  private createConfigHandler(servers: MCPServerDescriptor[]) {
+    return (req: express.Request, res: express.Response) => {
+      res.json({
+        version: "1.0.0",
+        name: "universal-mcp-gateway",
+        description: "Universal MCP Gateway with auto-discovery and zero configuration",
+        servers: servers.map(server => ({
+          name: server.name,
+          transport: {
+            type: "http",
+            url: `http://localhost:${req.socket.localPort || 8080}/mcp/${server.name}`
+          }
+        })),
+        defaultServer: servers.length > 0 ? servers[0].name : null,
+        aggregatedEndpoint: `http://localhost:${req.socket.localPort || 8080}/mcp`
+      });
+    };
+  }
+
+  private createHealthHandler(servers: MCPServerDescriptor[], processManager: ProcessPoolManager) {
+    return async (req: express.Request, res: express.Response) => {
+      try {
+        // MCP Inspector expects a simple healthy response
+        res.json({
+          status: 'ok',
+          healthy: true
+        });
+      } catch (error) {
+        res.status(500).json({
+          status: 'error',
+          healthy: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
     };

@@ -16,7 +16,7 @@ export class UniversalMCPGateway {
     this.app.use((req, res, next) => {
       res.header('Access-Control-Allow-Origin', '*');
       res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Mcp-Session-Id, MCP-Protocol-Version');
+      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Mcp-Session-Id, MCP-Protocol-Version, X-MCP-Proxy-Auth');
       
       if (req.method === 'OPTIONS') {
         res.sendStatus(200);

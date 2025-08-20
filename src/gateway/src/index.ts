@@ -4,7 +4,7 @@ async function main() {
   const gateway = new UniversalMCPGateway();
   
   try {
-    const port = parseInt(process.env.PORT || '8080');
+    const port = parseInt(process.env.PORT || '6277');
     await gateway.start(port);
     
     console.log('✅ Universal MCP Gateway started successfully');

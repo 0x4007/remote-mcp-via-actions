@@ -6,13 +6,21 @@
       "n", 
       "n",
       "n",
+      "n",
+      "n",
+      "n",
+      "n",
+      "n",
       "n"
     ],
-    "timeoutMs": 180000,
+    "timeoutMs": 300000,
     "environmentOverrides": {
       "REPLY": "n",
       "CI": "true",
-      "DEBIAN_FRONTEND": "noninteractive"
+      "DEBIAN_FRONTEND": "noninteractive",
+      "GATEWAY_SKIP_CLAUDE": "true",
+      "GATEWAY_SKIP_DESKTOP": "true",
+      "GATEWAY_SKIP_GEMINI": "true"
     }
   },
   "validation": {
