@@ -56,14 +56,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Initialize and update submodules
+      - name: Initialize and update submodules  
         run: |
           echo "Initializing submodules..."
-          git submodule init
-          git submodule update --recursive
+          git submodule update --init --recursive --force
           echo ""
           echo "Submodule status:"
           git submodule status
