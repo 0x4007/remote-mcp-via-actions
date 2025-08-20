@@ -59,25 +59,27 @@ jobs:
           submodules: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Initialize and update submodules  
+      - name: Clone Zen MCP Server
         run: |
-          echo "Initializing submodules..."
-          git submodule update --init --recursive --force
+          echo "Removing empty submodule directory if exists..."
+          rm -rf mcp-servers/zen-mcp-server
+          
+          echo "Cloning Zen MCP Server directly..."
+          git clone https://github.com/BeehiveInnovations/zen-mcp-server.git mcp-servers/zen-mcp-server
+          
           echo ""
-          echo "Submodule status:"
-          git submodule status
-          echo ""
-          echo "MCP servers directory:"
-          ls -la mcp-servers/
-          echo ""
-          if [ -d "mcp-servers/zen-mcp-server" ] && [ -f "mcp-servers/zen-mcp-server/server.py" ]; then
-            echo "✅ Zen server submodule found and populated"
-            ls -la mcp-servers/zen-mcp-server/ | head -10
+          echo "Verifying Zen server files:"
+          if [ -f "mcp-servers/zen-mcp-server/server.py" ]; then
+            echo "✅ Zen server successfully cloned"
+            ls -la mcp-servers/zen-mcp-server/ | head -15
           else
-            echo "❌ Zen server submodule NOT properly initialized!"
-            echo "Contents of mcp-servers/zen-mcp-server:"
-            ls -la mcp-servers/zen-mcp-server/ || echo "Directory not found"
+            echo "❌ Failed to clone Zen server"
+            ls -la mcp-servers/
           fi
+          
+          echo ""
+          echo "All MCP servers:"
+          ls -la mcp-servers/
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
