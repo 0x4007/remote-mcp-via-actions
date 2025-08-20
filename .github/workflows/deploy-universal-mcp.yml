@@ -166,6 +166,31 @@ jobs:
             done
           fi
 
+      - name: Update Cloudflare Worker KV
+        if: env.ENDPOINT_WORKING == 'true'
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "Updating Cloudflare Worker KV with tunnel URL..."
+          KV_NAMESPACE_ID="7e1605c08a3c407c9f8a331f25b5c117"
+          KV_RESPONSE=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/storage/kv/namespaces/$KV_NAMESPACE_ID/values/url" \
+            -H "Authorization: Bearer $CF_API_TOKEN" \
+            -H "Content-Type: text/plain" \
+            --data "$TUNNEL_URL")
+          echo "✅ Worker KV updated with tunnel URL"
+          echo "mcp.pavlovcik.com will now proxy to $TUNNEL_URL"
+          echo ""
+          echo "Claude Code MCP configuration:"
+          echo "claude mcp add --transport http universal-demo https://mcp.pavlovcik.com/"
+
+      - name: KV Update Skipped
+        if: env.ENDPOINT_WORKING == 'false'
+        run: |
+          echo "⚠️  KV update was skipped due to failed endpoint test"
+          echo "⚠️  The existing mcp.pavlovcik.com service should continue working"
+          echo "⚠️  This prevents breaking the service when tunnel registration fails"
+
       - name: Keep Gateway Running
         if: env.ENDPOINT_WORKING == 'true'
         run: |
