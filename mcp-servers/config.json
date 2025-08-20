@@ -24,8 +24,9 @@
         "LOG_LEVEL": "INFO"
       },
       "timeout": 60000,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "restartOnCrash": true,
+      "requiresStatefulConnection": true,
       "description": "AI-powered MCP server with multiple model providers for advanced coding assistance"
     }
   },

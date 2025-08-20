@@ -130,9 +130,9 @@ class SubmoduleManager {
       const wrapper = new StdioToHttpWrapper(serverName, mergedConfig);
       await wrapper.initialize();
       this.wrappers.set(serverName, wrapper);
-      console.log(`Successfully initialized ${serverName}`);
+      console.log(`✅ Successfully initialized ${serverName}`);
     } catch (error) {
-      console.error(`Failed to initialize ${serverName}:`, error);
+      console.error(`❌ Failed to initialize ${serverName}:`, error);
     }
   }
 

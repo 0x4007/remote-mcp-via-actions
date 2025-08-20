@@ -17,18 +17,32 @@ class StdioToHttpWrapper extends EventEmitter {
   async initialize() {
     if (this.isInitialized) return;
     
-    // Spawn initial process pool
-    const initialInstances = Math.min(1, this.config.maxInstances || 1);
-    for (let i = 0; i < initialInstances; i++) {
-      const processId = await this.spawnProcess();
-      
-      // Initialize the MCP protocol for this process
+    // For servers with strict initialization (like Zen), only spawn ONE process
+    // and keep using it for all requests to maintain state
+    // Check if this server requires stateful connection
+    if (this.config.requiresStatefulConnection) {
+      console.log(`${this.serverName} requires stateful connection - limiting to single process`);
+      this.config.maxInstances = 1;
+    }
+    
+    const processId = await this.spawnProcess();
+    
+    // Initialize the MCP protocol for this process
+    // Try multiple protocol versions if needed
+    const supportedVersions = this.config.protocolVersion 
+      ? [this.config.protocolVersion]  // Use configured version if specified
+      : ['2024-11-05', '2025-03-26', '2025-06-18'];  // Try common versions
+    
+    let initResponse = null;
+    let successfulVersion = null;
+    
+    for (const version of supportedVersions) {
       try {
         const initRequest = {
           jsonrpc: '2.0',
           method: 'initialize',
           params: {
-            protocolVersion: '2024-11-05',
+            protocolVersion: version,
             capabilities: {
               tools: {}
             },
@@ -40,19 +54,54 @@ class StdioToHttpWrapper extends EventEmitter {
           id: `init-${processId}`
         };
         
-        const initResponse = await this.sendRequestToProcess(processId, initRequest);
+        console.log(`Trying to initialize ${this.serverName} with protocol version ${version}...`);
+        initResponse = await this.sendRequestToProcess(processId, initRequest);
         
-        // Store initialization state for this process
-        const processInfo = this.processes.get(processId);
-        if (processInfo && initResponse && initResponse.result) {
-          processInfo.mcpInitialized = true;
-          console.log(`Initialized MCP protocol for ${this.serverName} process ${processId}`);
-        } else {
-          console.error(`Failed to initialize MCP protocol for ${this.serverName}: Invalid response`);
+        if (initResponse && initResponse.result) {
+          successfulVersion = version;
+          console.log(`Successfully initialized with protocol version ${version}`);
+          break;
         }
       } catch (error) {
-        console.error(`Failed to initialize MCP protocol for ${this.serverName}:`, error);
+        console.log(`Failed with version ${version}:`, error.message);
+        // Continue to next version
       }
+    }
+    
+    if (!initResponse || !initResponse.result) {
+      throw new Error(`Failed to initialize with any protocol version`);
+    }
+    
+    // Store initialization state for this process
+    const processInfo = this.processes.get(processId);
+    if (processInfo && initResponse && initResponse.result) {
+      processInfo.mcpInitialized = true;
+      processInfo.primaryProcess = true; // Mark as primary process for this server
+      processInfo.protocolVersion = successfulVersion; // Store the successful version
+      console.log(`Initialized MCP protocol for ${this.serverName} process ${processId}`);
+      console.log(`Server info:`, initResponse.result.serverInfo);
+      
+      // Send the 'initialized' notification as per MCP spec
+      // This is required for servers like Zen that follow the spec strictly
+      const initializedNotification = {
+        jsonrpc: '2.0',
+        method: 'notifications/initialized',
+        params: {}
+        // No ID for notifications
+      };
+      
+      try {
+        // Send notification without waiting for response (notifications don't get responses)
+        processInfo.process.stdin.write(JSON.stringify(initializedNotification) + '\n');
+        console.log(`Sent 'initialized' notification to ${this.serverName}`);
+        
+        // Give the server a moment to process the initialized notification
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (notifError) {
+        console.error(`Failed to send initialized notification to ${this.serverName}:`, notifError);
+      }
+    } else {
+      console.error(`Failed to initialize MCP protocol for ${this.serverName}: Invalid response`);
     }
     
     this.isInitialized = true;
@@ -116,7 +165,14 @@ class StdioToHttpWrapper extends EventEmitter {
 
     // Handle stderr (errors/logs from stdio server)
     childProcess.stderr.on('data', (data) => {
-      console.error(`[${this.serverName}] stderr:`, data.toString());
+      const stderr = data.toString();
+      console.error(`[${this.serverName}] stderr:`, stderr);
+      
+      // Store stderr in buffer for debugging
+      if (!this.messageBuffer.has(processId)) {
+        this.messageBuffer.set(processId, { stdout: '', stderr: '' });
+      }
+      this.messageBuffer.get(processId).stderr += stderr;
     });
 
     // Store process information
@@ -207,10 +263,66 @@ class StdioToHttpWrapper extends EventEmitter {
       // Find an initialized process
       processId = await this.getInitializedProcess();
       if (!processId) {
-        // No initialized process, initialize one
-        await this.initialize();
+        // No initialized process available, need to ensure we have one
+        // For servers that track initialization state (like Zen), we need to keep
+        // the same process for all requests after initialization
+        console.log(`No initialized process found for ${this.serverName}, ensuring initialization...`);
+        
+        // If we don't have any processes, spawn and initialize one
+        if (this.processes.size === 0) {
+          await this.initialize();
+        }
+        
         processId = await this.getInitializedProcess();
+        if (!processId) {
+          // Still no initialized process? Try to find any process and initialize it
+          processId = await this.getAvailableProcess();
+          if (processId) {
+            const processInfo = this.processes.get(processId);
+            // Send initialization to this specific process
+            // Use the stored protocol version if available, otherwise use default
+            const protocolVersion = processInfo.protocolVersion || '2024-11-05';
+            try {
+              const initRequest = {
+                jsonrpc: '2.0',
+                method: 'initialize',
+                params: {
+                  protocolVersion: protocolVersion,
+                  capabilities: { tools: {} },
+                  clientInfo: { name: 'remote-mcp-bridge', version: '1.0.0' }
+                },
+                id: `reinit-${processId}`
+              };
+              
+              const initResponse = await this.sendRequestToProcess(processId, initRequest);
+              if (initResponse && initResponse.result) {
+                processInfo.mcpInitialized = true;
+                console.log(`Re-initialized ${this.serverName} process ${processId} for tools/list`);
+                
+                // Send initialized notification after re-initialization
+                const initializedNotification = {
+                  jsonrpc: '2.0',
+                  method: 'notifications/initialized',
+                  params: {}
+                };
+                
+                try {
+                  processInfo.process.stdin.write(JSON.stringify(initializedNotification) + '\n');
+                  console.log(`Sent 'initialized' notification after re-init to ${this.serverName}`);
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                } catch (notifError) {
+                  console.error(`Failed to send initialized notification after re-init:`, notifError);
+                }
+              }
+            } catch (error) {
+              console.error(`Failed to re-initialize process ${processId}:`, error);
+            }
+          }
+        }
       }
+    } else if (request.method === 'initialize') {
+      // For initialize requests, prefer an uninitialized process or create a new one
+      processId = await this.getAvailableProcess();
     } else {
       processId = await this.getAvailableProcess();
     }
@@ -309,6 +421,11 @@ class StdioToHttpWrapper extends EventEmitter {
     const processInfo = this.processes.get(processId);
     if (!processInfo) return;
 
+    // Only log errors or important messages, not all messages
+    if (message.error) {
+      console.error(`[${this.serverName}] Error response:`, JSON.stringify(message, null, 2));
+    }
+
     // Handle response to a request
     if (message.id !== undefined && message.id !== null) {
       const request = this.activeRequests.get(message.id);
@@ -317,6 +434,8 @@ class StdioToHttpWrapper extends EventEmitter {
         this.activeRequests.delete(message.id);
         processInfo.busy = false;
         request.resolve(message);
+      } else {
+        console.warn(`[${this.serverName}] Received response for unknown request ID: ${message.id}`);
       }
     }
     
