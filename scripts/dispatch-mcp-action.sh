@@ -6,6 +6,10 @@
 REPO="0x4007/remote-mcp-via-actions"
 WORKFLOW="deploy-mcp.yml"
 
+# Get current branch name
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+echo "Current branch: $CURRENT_BRANCH"
+
 # Check if gh CLI is available
 if ! command -v gh &> /dev/null; then
     echo "GitHub CLI (gh) is not installed. Please install it first."
@@ -36,8 +40,8 @@ fi
 
 echo "No running workflows found. Dispatching new Deploy MCP workflow..."
 
-# Dispatch the workflow
-if gh workflow run "$WORKFLOW" --repo "$REPO"; then
+# Dispatch the workflow with current branch
+if gh workflow run "$WORKFLOW" --repo "$REPO" --ref "$CURRENT_BRANCH"; then
     echo "✅ Successfully dispatched Deploy MCP workflow"
     echo "The MCP server will be available at https://mcp.pavlovcik.com in 30 seconds"
     

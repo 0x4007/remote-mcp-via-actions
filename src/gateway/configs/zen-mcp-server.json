@@ -1,0 +1,36 @@
+{
+  "name": "zen-mcp-server",
+  "setupOptions": {
+    "stdinResponses": [
+      "n",
+      "n", 
+      "n",
+      "n",
+      "n",
+      "n",
+      "n",
+      "n",
+      "n",
+      "n"
+    ],
+    "timeoutMs": 300000,
+    "environmentOverrides": {
+      "REPLY": "n",
+      "CI": "true",
+      "DEBIAN_FRONTEND": "noninteractive",
+      "GATEWAY_SKIP_CLAUDE": "true",
+      "GATEWAY_SKIP_DESKTOP": "true",
+      "GATEWAY_SKIP_GEMINI": "true"
+    }
+  },
+  "validation": {
+    "readyMarkerContent": "zen-mcp-server",
+    "requiredFiles": [
+      ".zen_venv/bin/python",
+      "server.py"
+    ],
+    "requiredDirectories": [
+      ".zen_venv"
+    ]
+  }
+}

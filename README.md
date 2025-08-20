@@ -66,14 +66,50 @@ claude mcp add --transport http remote-mcp-bridge http://localhost:8081/mcp
 
 ## Adding New MCP Servers
 
-### Automatic Configuration
-The bridge automatically detects and configures most MCP servers:
+### Simple Servers (Automatic Configuration)
+Most MCP servers work automatically with zero configuration:
 
 ```bash
 cd mcp-servers
 git submodule add https://github.com/your/mcp-server.git
 # Server is automatically detected and tools are available!
 ```
+
+The Universal Gateway respects standard environment variables:
+- `GATEWAY_SETUP=true` - Indicates gateway-managed setup
+- `GATEWAY_NON_INTERACTIVE=true` - Bypasses interactive prompts
+- `GATEWAY_SKIP_INTEGRATIONS=true` - Skips external integrations during setup
+
+### Complex Servers (Custom Configuration)  
+For servers that need custom setup behavior (like interactive prompts or special environment variables), create a configuration file:
+
+```bash
+# Create server-specific configuration
+vi src/gateway/configs/{server-name}.json
+```
+
+Example configuration (`src/gateway/configs/zen-mcp-server.json`):
+```json
+{
+  "name": "zen-mcp-server",
+  "setupOptions": {
+    "stdinResponses": ["n", "n", "n", "n", "n"],
+    "timeoutMs": 180000,
+    "environmentOverrides": {
+      "REPLY": "n",
+      "CI": "true", 
+      "DEBIAN_FRONTEND": "noninteractive"
+    }
+  },
+  "validation": {
+    "readyMarkerContent": "zen-mcp-server",
+    "requiredFiles": [".zen_venv/bin/python", "server.py"],
+    "requiredDirectories": [".zen_venv"]
+  }
+}
+```
+
+The gateway will automatically use the configuration if it exists, otherwise it uses universal defaults.
 
 ### Manual Configuration
 For servers with special requirements, edit `mcp-servers/config.json`:
@@ -133,14 +169,164 @@ The current setup exposes **21 tools** from three servers:
 
 ### Using MCP Inspector
 
+The Universal MCP Gateway fully supports the MCP Inspector with proper initialization handling, protocol version flexibility, and all required capabilities.
+
+#### Connection Details
+- **URL**: `http://localhost:6277`
+- **Transport**: HTTP Streamable 
+- **Protocol Version**: Flexible (supports both `2024-11-05` and `2025-06-18`)
+- **Authentication**: None required
+
 ```bash
 # Start the MCP Inspector
 cd tests/mcp-inspector
 npm start
 
 # Open browser to http://localhost:6274
-# Connect to: http://localhost:8081/mcp (HTTP Streamable)
+# Connect to: http://localhost:6277
 ```
+
+#### Required Endpoints Working
+
+##### 1. Health Check
+```bash
+curl 'http://localhost:6277/health' \
+  -H 'X-MCP-Proxy-Auth: Bearer 4c928e28cba0d710cfb4ca5b42f2483e707c575a8f02888b870b2b52991dde17'
+```
+**Expected Response:**
+```json
+{"status":"ok","healthy":true}
+```
+
+##### 2. Configuration
+```bash
+curl 'http://localhost:6277/config'
+```
+**Expected Response:**
+```json
+{
+  "version": "1.0.0",
+  "name": "universal-mcp-gateway",
+  "description": "Universal MCP Gateway with auto-discovery and zero configuration",
+  "servers": [
+    {
+      "name": "example-calculator",
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:6277/mcp/example-calculator"
+      }
+    },
+    {
+      "name": "zen-mcp-server", 
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:6277/mcp/zen-mcp-server"
+      }
+    }
+  ],
+  "defaultServer": "example-calculator",
+  "aggregatedEndpoint": "http://localhost:6277/mcp"
+}
+```
+
+##### 3. MCP Initialize (Critical for Inspector)
+```bash
+curl 'http://localhost:6277/mcp?url=http%3A%2F%2Flocalhost%3A6277%2Fmcp&transportType=streamable-http' \
+  -H 'Accept-Language: en-US,en;q=0.7' \
+  -H 'Cache-Control: no-cache' \
+  -H 'Connection: keep-alive' \
+  -H 'Origin: http://localhost:6274' \
+  -H 'Pragma: no-cache' \
+  -H 'Referer: http://localhost:6274/' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: same-site' \
+  -H 'Sec-GPC: 1' \
+  -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36' \
+  -H 'accept: application/json, text/event-stream' \
+  -H 'content-type: application/json' \
+  -H 'sec-ch-ua: "Not;A=Brand";v="99", "Brave";v="139", "Chromium";v="139"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "macOS"' \
+  --data-raw '{"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{"sampling":{},"elicitation":{},"roots":{"listChanged":true}},"clientInfo":{"name":"mcp-inspector","version":"0.16.5"}},"jsonrpc":"2.0","id":0}'
+```
+**Expected Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 0,
+  "result": {
+    "protocolVersion": "2025-06-18",
+    "capabilities": {
+      "tools": {},
+      "logging": {},
+      "sampling": {},
+      "elicitation": {},
+      "roots": {
+        "listChanged": true
+      }
+    },
+    "serverInfo": {
+      "name": "universal-mcp-gateway",
+      "version": "1.0.0"
+    }
+  }
+}
+```
+
+##### 4. MCP Notifications (Must not timeout)
+```bash
+curl 'http://localhost:6277/mcp?url=http%3A%2F%2Flocalhost%3A6277%2Fmcp&transportType=streamable-http' \
+  -H 'Accept-Language: en-US,en;q=0.7' \
+  -H 'Cache-Control: no-cache' \
+  -H 'Connection: keep-alive' \
+  -H 'Origin: http://localhost:6274' \
+  -H 'Pragma: no-cache' \
+  -H 'Referer: http://localhost:6274/' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: same-site' \
+  -H 'Sec-GPC: 1' \
+  -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36' \
+  -H 'accept: application/json, text/event-stream' \
+  -H 'content-type: application/json' \
+  -H 'mcp-protocol-version: 2025-06-18' \
+  -H 'sec-ch-ua: "Not;A=Brand";v="99", "Brave";v="139", "Chromium";v="139"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "macOS"' \
+  --data-raw '{"method":"notifications/initialized","jsonrpc":"2.0"}'
+```
+**Expected Response:** HTTP 200 with no content (immediate response, no timeout)
+
+##### 5. Tools List (19 tools expected)
+```bash
+curl -s -X POST 'http://localhost:6277/mcp' \
+  -H 'content-type: application/json' \
+  --data-raw '{"method":"tools/list","params":{},"jsonrpc":"2.0","id":2}'
+```
+**Expected Response:** JSON with `result.tools` array containing 19 tools:
+- 3 calculator tools: `example-calculator__add`, `example-calculator__multiply`, `example-calculator__divide`
+- 16 zen tools: `zen-mcp-server__chat`, `zen-mcp-server__thinkdeep`, etc.
+
+#### Troubleshooting MCP Inspector Connection
+
+If the MCP Inspector fails to connect:
+
+1. **Check Gateway is Running**: `curl http://localhost:6277/health`
+2. **Verify Port**: Gateway must run on port 6277 (not 8080)
+3. **Test Initialize**: Use the initialize curl above
+4. **Test Notifications**: Use the notification curl above - it must NOT timeout
+5. **Check Tools**: Tools list must return 19 tools
+
+#### ⚠️ Critical Requirements (NEVER REGRESS)
+
+These must ALWAYS work or MCP Inspector will break:
+
+1. **Port 6277**: Inspector expects this specific port
+2. **Initialize Method**: Must accept `2025-06-18` protocol version
+3. **Capabilities**: Must include `sampling`, `elicitation`, `roots.listChanged`
+4. **Notifications**: Must return HTTP 200 immediately (no timeout)
+5. **Tool Count**: Must return exactly 19 tools from both servers
 
 ### Test with Claude Code
 
