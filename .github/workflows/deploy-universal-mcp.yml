@@ -55,6 +55,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential
 
+      - name: Debug - List MCP Servers
+        run: |
+          echo "📂 Checking mcp-servers directory:"
+          ls -la mcp-servers/ || echo "Directory not found"
+          echo ""
+          echo "📁 Checking zen-mcp-server:"
+          ls -la mcp-servers/zen-mcp-server/ | head -20 || echo "zen-mcp-server not found"
+          echo ""
+          echo "🔍 Current working directory:"
+          pwd
+
       - name: Start Universal MCP Gateway
         working-directory: src/gateway
         env:
