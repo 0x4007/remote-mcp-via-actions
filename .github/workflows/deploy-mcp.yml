@@ -58,6 +58,21 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Verify submodules
+        run: |
+          echo "Checking submodules..."
+          git submodule status
+          echo ""
+          echo "MCP servers directory:"
+          ls -la mcp-servers/
+          echo ""
+          if [ -d "mcp-servers/zen-mcp-server" ]; then
+            echo "✅ Zen server submodule found"
+            ls -la mcp-servers/zen-mcp-server/ | head -10
+          else
+            echo "❌ Zen server submodule NOT found!"
+          fi
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -74,10 +89,16 @@ jobs:
           npm install
 
       - name: Install Zen server dependencies
-        if: hashFiles('mcp-servers/zen-mcp-server/requirements.txt') != ''
-        working-directory: mcp-servers/zen-mcp-server
         run: |
-          pip install -r requirements.txt
+          if [ -f "mcp-servers/zen-mcp-server/requirements.txt" ]; then
+            echo "Installing Zen server Python dependencies..."
+            cd mcp-servers/zen-mcp-server
+            pip install -r requirements.txt
+            echo "✅ Zen server dependencies installed"
+          else
+            echo "⚠️ Zen server requirements.txt not found - submodules may not be checked out"
+            ls -la mcp-servers/
+          fi
 
       - name: Create required directories
         run: |
