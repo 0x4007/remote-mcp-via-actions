@@ -129,6 +129,9 @@ class StdioToHttpWrapper extends EventEmitter {
       console.log(`  OPENROUTER_API_KEY: ${mergedEnv.OPENROUTER_API_KEY ? 'SET' : 'NOT SET'}`);
       console.log(`  OPENAI_API_KEY: ${mergedEnv.OPENAI_API_KEY ? 'SET' : 'NOT SET'}`);
       console.log(`  PYTHONPATH: ${mergedEnv.PYTHONPATH || 'not set'}`);
+      console.log(`  PYTHONUNBUFFERED: ${mergedEnv.PYTHONUNBUFFERED || 'not set'}`);
+      console.log(`  LOG_LEVEL: ${mergedEnv.LOG_LEVEL || 'not set'}`);
+      console.log(`  Working directory: ${serverPath}`);
     }
     
     const spawnOptions = {
@@ -152,7 +155,19 @@ class StdioToHttpWrapper extends EventEmitter {
     });
 
     childProcess.on('exit', (code, signal) => {
-      console.log(`Process ${processId} exited with code ${code}, signal ${signal}`);
+      if (this.serverName === 'zen-mcp-server') {
+        console.error(`[${this.serverName}] Process ${processId} exited with code ${code}, signal ${signal}`);
+        if (code !== 0) {
+          console.error(`[${this.serverName}] Non-zero exit code detected! This indicates the Python server failed to start.`);
+          // Log stderr buffer if available
+          const buffer = this.messageBuffer.get(processId);
+          if (buffer && buffer.stderr) {
+            console.error(`[${this.serverName}] stderr buffer content:`, buffer.stderr);
+          }
+        }
+      } else {
+        console.log(`Process ${processId} exited with code ${code}, signal ${signal}`);
+      }
       this.handleProcessExit(processId, code, signal);
     });
 

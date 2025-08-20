@@ -17,12 +17,13 @@
     },
     "zen-mcp-server": {
       "enabled": true,
-      "command": "bash",
-      "args": ["start-zen.sh"],
+      "command": "python",
+      "args": ["-u", "server.py"],
       "env": {
         "PYTHONPATH": ".",
-        "LOG_LEVEL": "INFO",
+        "LOG_LEVEL": "INFO", 
         "PYTHONUNBUFFERED": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
         "_comment": "Requires OPENROUTER_API_KEY to function in production"
       },
       "timeout": 60000,
