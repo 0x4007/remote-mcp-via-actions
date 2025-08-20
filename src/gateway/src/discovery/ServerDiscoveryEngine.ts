@@ -124,8 +124,24 @@ export class ServerDiscoveryEngine {
   }
   
   private createPythonDescriptor(name: string, serverPath: string): MCPServerDescriptor {
-    let entrypoint = 'python'; // Use python command universally
+    let entrypoint = 'python'; // Default to system python
     let args = ['-u']; // Unbuffered output
+    
+    // Check for Python virtual environments in priority order
+    const venvPaths = [
+      path.join(serverPath, '.zen_venv', 'bin', 'python'),
+      path.join(serverPath, 'venv', 'bin', 'python'),
+      path.join(serverPath, '.venv', 'bin', 'python')
+    ];
+    
+    // Use virtual environment Python if available
+    for (const venvPath of venvPaths) {
+      if (fs.existsSync(venvPath)) {
+        entrypoint = venvPath;
+        console.log(`🐍 Using virtual environment Python: ${venvPath}`);
+        break;
+      }
+    }
     
     // Universal Python server entry point detection
     if (fs.existsSync(path.join(serverPath, 'server.py'))) {
