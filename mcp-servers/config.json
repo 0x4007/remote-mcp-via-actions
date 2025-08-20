@@ -22,13 +22,14 @@
       "env": {
         "PYTHONPATH": ".",
         "LOG_LEVEL": "INFO",
-        "_comment": "Requires API keys (OPENAI_API_KEY, etc.) to function. Enable locally with your keys."
+        "PYTHONUNBUFFERED": "1",
+        "_comment": "Requires OPENROUTER_API_KEY to function in production"
       },
       "timeout": 60000,
       "maxInstances": 1,
       "restartOnCrash": true,
       "requiresStatefulConnection": true,
-      "description": "AI-powered MCP server with multiple model providers for advanced coding assistance (DISABLED: requires API keys)"
+      "description": "AI-powered MCP server with multiple model providers for advanced coding assistance"
     }
   },
   "defaults": {

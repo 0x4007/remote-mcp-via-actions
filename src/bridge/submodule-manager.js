@@ -140,6 +140,14 @@ class SubmoduleManager {
       }
     }
 
+    // Log final config for debugging
+    console.log(`${serverName} final config:`, {
+      command: mergedConfig.command,
+      args: mergedConfig.args,
+      env: Object.keys(mergedConfig.env || {}),
+      timeout: mergedConfig.timeout
+    });
+
     try {
       const wrapper = new StdioToHttpWrapper(serverName, mergedConfig);
       await wrapper.initialize();
@@ -147,6 +155,10 @@ class SubmoduleManager {
       console.log(`✅ Successfully initialized ${serverName}`);
     } catch (error) {
       console.error(`❌ Failed to initialize ${serverName}:`, error);
+      console.error(`❌ Error details for ${serverName}:`, error.message);
+      if (error.stack) {
+        console.error(`❌ Stack trace for ${serverName}:`, error.stack);
+      }
     }
   }
 
