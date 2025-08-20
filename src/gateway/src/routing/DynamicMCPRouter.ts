@@ -56,9 +56,8 @@ export class DynamicMCPRouter {
     app.post('/mcp', this.createAggregatedPostHandler(servers, processManager));
     app.delete('/mcp', this.createDeleteHandler('aggregated'));
     
-    // MCP Inspector proxy server endpoints
-    app.get('/config', this.createConfigHandler(servers));
-    app.get('/health', this.createHealthHandler(servers, processManager));
+    // MCP Inspector proxy server endpoints  
+    app.get('/mcp-health', this.createHealthHandler(servers, processManager));
   }
   
   private createGetHandler(serverName: string, processManager: ProcessPoolManager) {
@@ -223,8 +222,8 @@ export class DynamicMCPRouter {
 
         // Handle notifications (no response needed)
         if (method?.startsWith('notifications/')) {
-          // Notifications don't require a response, just acknowledge
-          res.status(200).end();
+          // Notifications don't require a response, just acknowledge with minimal JSON-RPC response
+          res.json({ jsonrpc: '2.0' });
           return;
         }
 
@@ -283,16 +282,38 @@ export class DynamicMCPRouter {
               params: { ...params, name: actualToolName }
             };
             
-            const response = await processManager.routeRequest(serverName, modifiedRequest);
-            res.json(response);
+            try {
+              const response = await processManager.routeRequest(serverName, modifiedRequest);
+              res.json(response);
+            } catch (error) {
+              res.json({
+                jsonrpc: '2.0',
+                id: req.body.id,
+                error: {
+                  code: -32603,
+                  message: error instanceof Error ? error.message : 'Internal error'
+                }
+              });
+            }
             return;
           }
         }
         
         // For other requests, try first available server (maintain compatibility)
         if (servers.length > 0) {
-          const response = await processManager.routeRequest(servers[0].name, req.body);
-          res.json(response);
+          try {
+            const response = await processManager.routeRequest(servers[0].name, req.body);
+            res.json(response);
+          } catch (error) {
+            res.json({
+              jsonrpc: '2.0',
+              id: req.body.id,
+              error: {
+                code: -32603,
+                message: error instanceof Error ? error.message : 'Internal error'
+              }
+            });
+          }
           return;
         }
         

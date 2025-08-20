@@ -1,0 +1,12 @@
+{
+  "name": "test-calculator",
+  "version": "1.0.0",
+  "description": "Test MCP server for unit testing",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": ["mcp", "test", "calculator"],
+  "license": "MIT"
+}

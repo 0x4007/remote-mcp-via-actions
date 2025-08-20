@@ -11,7 +11,7 @@ const assert = require('assert');
 const axios = require('axios');
 
 const GATEWAY_URL = 'http://localhost:6277';
-const EXPECTED_TOOL_COUNT = 19;
+const EXPECTED_TOOL_COUNT = 22;
 
 // MCP Inspector specific headers that the browser sends
 const INSPECTOR_HEADERS = {
@@ -59,13 +59,15 @@ describe('MCP Inspector Compatibility', () => {
       assert.strictEqual(response.data.name, 'universal-mcp-gateway');
       assert.strictEqual(response.data.version, '1.0.0');
       assert(Array.isArray(response.data.servers));
-      assert(response.data.servers.length >= 2); // example-calculator and zen-mcp-server
+      assert(response.data.servers.length >= 4); // All discovered servers
       assert.strictEqual(response.data.aggregatedEndpoint, `${GATEWAY_URL}/mcp`);
       
       // Verify server entries
       const serverNames = response.data.servers.map(s => s.name);
       assert(serverNames.includes('example-calculator'));
       assert(serverNames.includes('zen-mcp-server'));
+      assert(serverNames.includes('test-calculator'));
+      assert(serverNames.includes('test-echo'));
     });
   });
 
@@ -164,10 +166,14 @@ describe('MCP Inspector Compatibility', () => {
         `Expected ${EXPECTED_TOOL_COUNT} tools, got ${tools.length}`);
       
       // Verify tool namespacing
-      const calculatorTools = tools.filter(t => t.name.startsWith('example-calculator__'));
+      const exampleCalculatorTools = tools.filter(t => t.name.startsWith('example-calculator__'));
+      const testCalculatorTools = tools.filter(t => t.name.startsWith('test-calculator__'));
+      const testEchoTools = tools.filter(t => t.name.startsWith('test-echo__'));
       const zenTools = tools.filter(t => t.name.startsWith('zen-mcp-server__'));
       
-      assert.strictEqual(calculatorTools.length, 3, 'Expected 3 calculator tools');
+      assert.strictEqual(exampleCalculatorTools.length, 3, 'Expected 3 example-calculator tools');
+      assert.strictEqual(testCalculatorTools.length, 2, 'Expected 2 test-calculator tools');  
+      assert.strictEqual(testEchoTools.length, 1, 'Expected 1 test-echo tool');
       assert.strictEqual(zenTools.length, 16, 'Expected 16 zen tools');
       
       // Verify specific required tools exist
@@ -175,6 +181,9 @@ describe('MCP Inspector Compatibility', () => {
       assert(toolNames.includes('example-calculator__add'));
       assert(toolNames.includes('example-calculator__multiply'));
       assert(toolNames.includes('example-calculator__divide'));
+      assert(toolNames.includes('test-calculator__add'));
+      assert(toolNames.includes('test-calculator__multiply'));
+      assert(toolNames.includes('test-echo__echo'));
       assert(toolNames.includes('zen-mcp-server__chat'));
       assert(toolNames.includes('zen-mcp-server__thinkdeep'));
     });

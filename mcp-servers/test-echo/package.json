@@ -1,0 +1,12 @@
+{
+  "name": "test-echo",
+  "version": "1.0.0",
+  "description": "Test MCP echo server for unit testing",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": ["mcp", "test", "echo"],
+  "license": "MIT"
+}

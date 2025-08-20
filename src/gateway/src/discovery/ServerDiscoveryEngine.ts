@@ -3,7 +3,7 @@ import path from 'path';
 import { MCPServerDescriptor } from '../types';
 
 export class ServerDiscoveryEngine {
-  private baseDir = path.resolve('../../mcp-servers');
+  private baseDir = path.resolve(process.cwd(), '../../mcp-servers');
   
   async scanSubmodules(): Promise<MCPServerDescriptor[]> {
     if (!fs.existsSync(this.baseDir)) {
