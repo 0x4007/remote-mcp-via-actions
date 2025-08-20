@@ -9,6 +9,7 @@ This serves as a fallback when the registry loading fails in CI environments.
 """
 
 import os
+import sys
 import logging
 
 # Set up logging - CRITICAL: Output to stderr to avoid JSON-RPC interference
@@ -147,12 +148,56 @@ def patch_base_tool_get_available_models():
     except Exception as e:
         logger.error(f"❌ Failed to patch BaseTool._get_available_models: {e}")
 
+def patch_tool_schemas():
+    """Patch tool schemas to include Grok aliases in enum lists."""
+    
+    try:
+        grok_aliases = get_direct_aliases()
+        if not grok_aliases:
+            logger.info("No Grok aliases to inject into tool schemas")
+            return
+            
+        logger.info(f"Attempting to patch tool schemas with {len(grok_aliases)} Grok aliases")
+        
+        # Try to patch the chat tool schema specifically
+        try:
+            from tools.chat import ChatTool
+            if hasattr(ChatTool, 'get_schema') or hasattr(ChatTool, 'schema'):
+                logger.info("Found ChatTool, attempting to patch schema")
+                # We'll patch this dynamically at runtime
+        except ImportError:
+            logger.info("ChatTool not found or not importable")
+        
+        # Try to find and patch any tool schema definitions
+        import sys
+        for module_name in list(sys.modules.keys()):
+            if 'tools' in module_name.lower() and sys.modules[module_name]:
+                module = sys.modules[module_name]
+                for attr_name in dir(module):
+                    attr = getattr(module, attr_name)
+                    if hasattr(attr, '__dict__') and isinstance(attr.__dict__, dict):
+                        # Look for enum-like structures in the module
+                        for key, value in attr.__dict__.items():
+                            if isinstance(value, list) and any('x-ai/grok' in str(item) for item in value if isinstance(item, str)):
+                                logger.info(f"Found potential model enum in {module_name}.{attr_name}.{key}")
+                                # Inject our aliases
+                                for alias in grok_aliases:
+                                    if alias not in value:
+                                        value.append(alias)
+                                        logger.info(f"Injected {alias} into {module_name}.{attr_name}.{key}")
+        
+        logger.info("Tool schema patching completed")
+        
+    except Exception as e:
+        logger.error(f"Failed to patch tool schemas: {e}")
+
 def apply_direct_alias_injection():
     """Apply direct alias injection if enabled."""
     
     if os.getenv('GROK_ALIASES_ENABLED') == 'true':
         logger.info("=== DIRECT ALIAS INJECTION ENABLED ===")
         patch_base_tool_get_available_models()
+        patch_tool_schemas()
         logger.info("=== DIRECT ALIAS INJECTION COMPLETE ===")
     else:
         logger.info("Direct alias injection disabled")

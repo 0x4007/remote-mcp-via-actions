@@ -40,6 +40,13 @@ def apply_zen_server_patch():
             logger.info("Direct alias injection applied successfully")
         except Exception as e:
             logger.error(f"Failed to apply direct alias injection: {e}")
+        
+        try:
+            # Import and apply enum patches
+            import enum_patch
+            logger.info("Enum patches applied successfully")
+        except Exception as e:
+            logger.error(f"Failed to apply enum patches: {e}")
     else:
         logger.info("Grok aliases debugging disabled")
 

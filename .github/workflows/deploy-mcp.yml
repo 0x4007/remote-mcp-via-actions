@@ -123,6 +123,7 @@ jobs:
             cp "${{ github.workspace }}/config/debug_alias_patch.py" ./
             cp "${{ github.workspace }}/config/zen_server_patch.py" ./
             cp "${{ github.workspace }}/config/direct_alias_injection.py" ./
+            cp "${{ github.workspace }}/config/enum_patch.py" ./
             echo "Testing debug patch..."
             python -c "import sys; sys.path.insert(0, '.'); import debug_alias_patch; print('✅ Debug patch applied successfully')"
             echo ""
@@ -183,6 +184,7 @@ jobs:
           cp "${CUSTOM_MODELS_CONFIG_PATH%/*}/debug_alias_patch.py" ../../mcp-servers/zen-mcp-server/ || echo "Debug alias patch copy failed"
           cp "${CUSTOM_MODELS_CONFIG_PATH%/*}/zen_server_patch.py" ../../mcp-servers/zen-mcp-server/ || echo "Zen server patch copy failed"
           cp "${CUSTOM_MODELS_CONFIG_PATH%/*}/direct_alias_injection.py" ../../mcp-servers/zen-mcp-server/ || echo "Direct alias injection copy failed"
+          cp "${CUSTOM_MODELS_CONFIG_PATH%/*}/enum_patch.py" ../../mcp-servers/zen-mcp-server/ || echo "Enum patch copy failed"
           echo "Creating patched server.py..."
           cd ../../mcp-servers/zen-mcp-server/
           cp server.py server_original.py
