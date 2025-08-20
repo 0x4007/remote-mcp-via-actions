@@ -138,6 +138,90 @@ jobs:
             echo "Testing environment:"
             python -c "import os; print(f'OPENROUTER_API_KEY: {\"SET\" if os.getenv(\"OPENROUTER_API_KEY\") else \"NOT SET\"}')"
 
+            # Apply debug patch for Grok alias investigation
+            echo ""
+            echo "Applying Grok alias debug patch..."
+            export CUSTOM_MODELS_CONFIG_PATH="${{ github.workspace }}/config/custom_models_override.json"
+            export GROK_ALIASES_ENABLED="true"
+            export GROK_ALIASES="grok,grok-4,grok4,grok-3,grok3,grok-3-fast,grok3-fast,grokfast,grok-fast"
+            export PYTHONPATH="${{ github.workspace }}/config:$PYTHONPATH"
+            
+            # Copy debug patches to Zen server directory for imports
+            cp "${{ github.workspace }}/config/debug_alias_patch.py" ./
+            cp "${{ github.workspace }}/config/zen_server_patch.py" ./
+            cp "${{ github.workspace }}/config/direct_alias_injection.py" ./
+            
+            # Test debug patch application
+            echo "Testing debug patch..."
+            python -c "
+import sys
+sys.path.insert(0, '.')
+import debug_alias_patch
+print('✅ Debug patch applied successfully')
+"
+
+            # Pre-deployment config verification
+            echo ""
+            echo "=== PRE-DEPLOYMENT CONFIG VERIFICATION ==="
+            echo "Verifying custom models config loading..."
+            
+            python -c "
+import sys, os, json
+from pathlib import Path
+
+# Test environment variables
+config_path = os.getenv('CUSTOM_MODELS_CONFIG_PATH')
+print(f'CUSTOM_MODELS_CONFIG_PATH: {config_path}')
+print(f'GROK_ALIASES_ENABLED: {os.getenv(\"GROK_ALIASES_ENABLED\")}')
+
+# Test file existence and readability
+if config_path:
+    config_file = Path(config_path)
+    print(f'Config file exists: {config_file.exists()}')
+    
+    if config_file.exists():
+        print(f'Config file is readable: {config_file.is_file()}')
+        print(f'Config file size: {config_file.stat().st_size} bytes')
+        
+        try:
+            with open(config_file, 'r') as f:
+                config_data = json.load(f)
+                
+            print('✅ Config file JSON is valid')
+            
+            # Check for Grok models
+            if 'models' in config_data:
+                grok_models = [m for m in config_data['models'] if 'grok' in m.get('model_name', '').lower()]
+                print(f'Found {len(grok_models)} Grok models in config')
+                
+                for model in grok_models:
+                    model_name = model.get('model_name', 'unknown')
+                    aliases = model.get('aliases', [])
+                    print(f'  {model_name}: aliases = {aliases}')
+                    
+                if grok_models:
+                    print('✅ Grok models found in config')
+                else:
+                    print('❌ No Grok models found in config')
+            else:
+                print('❌ No models section found in config')
+                
+        except json.JSONDecodeError as e:
+            print(f'❌ Config file JSON is invalid: {e}')
+            sys.exit(1)
+        except Exception as e:
+            print(f'❌ Failed to read config file: {e}')
+            sys.exit(1)
+    else:
+        print('❌ Config file does not exist or is not accessible')
+        sys.exit(1)
+else:
+    print('❌ CUSTOM_MODELS_CONFIG_PATH not set')
+    sys.exit(1)
+
+print('✅ Pre-deployment config verification passed')
+"
+
             # Test if server.py can start
             echo ""
             echo "Testing server.py startup:"
@@ -160,6 +244,7 @@ jobs:
           OPENROUTER_TOKEN: ${{ secrets.OPENROUTER_TOKEN }}
           CUSTOM_MODELS_CONFIG_PATH: ${{ github.workspace }}/config/custom_models_override.json
           GROK_ALIASES_ENABLED: "true"
+          GROK_ALIASES: "grok,grok-4,grok4,grok-3,grok3,grok-3-fast,grok3-fast,grokfast,grok-fast"
           PYTHONPATH: ${{ github.workspace }}/config:$PYTHONPATH
         run: |
           # Export environment variables
@@ -197,11 +282,53 @@ jobs:
           ls -la ../../mcp-servers/
           echo ""
 
+          # Ensure debug patches are available for Zen server
+          echo "Copying debug and alias injection patches to Zen server..."
+          cp "${CUSTOM_MODELS_CONFIG_PATH%/*}/debug_alias_patch.py" ../../mcp-servers/zen-mcp-server/ || echo "Debug alias patch copy failed"
+          cp "${CUSTOM_MODELS_CONFIG_PATH%/*}/zen_server_patch.py" ../../mcp-servers/zen-mcp-server/ || echo "Zen server patch copy failed"
+          cp "${CUSTOM_MODELS_CONFIG_PATH%/*}/direct_alias_injection.py" ../../mcp-servers/zen-mcp-server/ || echo "Direct alias injection copy failed"
+          
+          # Create a patched server.py that applies debug patches
+          echo "Creating patched server.py..."
+          cd ../../mcp-servers/zen-mcp-server/
+          cp server.py server_original.py
+          cat > server_patched.py << 'EOF'
+# Zen Server with Debug Patch Applied
+import sys
+import os
+
+# Apply debug patch first, before any other imports
+try:
+    import zen_server_patch
+    print("[SERVER] Debug patches initialized")
+except Exception as e:
+    print(f"[SERVER] Failed to apply debug patches: {e}")
+
+# Now import and run the original server
+with open('server_original.py', 'r') as f:
+    server_code = f.read()
+
+# Execute the original server code
+exec(server_code)
+EOF
+          
+          # Replace server.py with patched version for debugging
+          if [ "$GROK_ALIASES_ENABLED" = "true" ]; then
+            echo "Replacing server.py with patched version for debugging..."
+            mv server.py server_backup.py
+            mv server_patched.py server.py
+            echo "✅ Patched server.py is now active"
+          fi
+          
+          cd ../../src/bridge/
+
           # Start the custom MCP server
-          echo "Starting Custom MCP Server..."
+          echo "Starting Custom MCP Server with debug patch..."
           echo "Deployment version: ${GITHUB_SHA:0:8}"
           echo "OPENROUTER_API_KEY is ${OPENROUTER_API_KEY:+set}${OPENROUTER_API_KEY:-not set}"
-          nohup env OPENROUTER_API_KEY="${OPENROUTER_API_KEY}" node server.js > bridge.log 2>&1 &
+          echo "CUSTOM_MODELS_CONFIG_PATH: ${CUSTOM_MODELS_CONFIG_PATH}"
+          echo "GROK_ALIASES_ENABLED: ${GROK_ALIASES_ENABLED}"
+          nohup env OPENROUTER_API_KEY="${OPENROUTER_API_KEY}" CUSTOM_MODELS_CONFIG_PATH="${CUSTOM_MODELS_CONFIG_PATH}" GROK_ALIASES_ENABLED="${GROK_ALIASES_ENABLED}" GROK_ALIASES="${GROK_ALIASES}" PYTHONPATH="${PYTHONPATH}" node server.js > bridge.log 2>&1 &
           BRIDGE_PID=$!
           echo "Custom MCP Server started with PID: $BRIDGE_PID"
 
