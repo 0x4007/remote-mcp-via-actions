@@ -40,13 +40,23 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Bridge Dependencies
-        working-directory: src/bridge
+      - name: Install Gateway Dependencies
+        working-directory: src/gateway
         run: |
           npm install
 
-      - name: Start Custom MCP Server
-        working-directory: src/bridge
+      - name: Install Universal Setup Dependencies
+        run: |
+          # Install uv for Python servers that may need it
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+          # Install basic dependencies that setup scripts might need
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Start Universal MCP Gateway
+        working-directory: src/gateway
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -54,7 +64,7 @@ jobs:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           PORT: 8080
         run: |
-          echo "🚀 Starting Custom MCP Server..."
+          echo "🚀 Starting Universal MCP Gateway with auto-setup..."
 
           # Ensure API key is available
           if [[ -z "${OPENROUTER_API_KEY}" ]]; then
@@ -62,29 +72,31 @@ jobs:
             exit 1
           fi
 
-          # Start bridge server
-          nohup node server.js > bridge.log 2>&1 &
-          BRIDGE_PID=$!
-          echo "Custom MCP Server started with PID: $BRIDGE_PID"
+          # Start gateway (it will auto-discover and setup all MCP servers)
+          nohup npm start > gateway.log 2>&1 &
+          GATEWAY_PID=$!
+          echo "Gateway started with PID: $GATEWAY_PID"
+          echo "🔧 Gateway is auto-discovering and setting up MCP servers..."
 
-          # Wait for server to start
-          for i in {1..30}; do
+          # Wait for gateway to complete setup and start
+          for i in {1..60}; do
             if curl -s http://localhost:8080/health > /dev/null 2>&1; then
-              echo "✅ Custom MCP Server started successfully"
-              echo "Server info:"
-              curl -s http://localhost:8080/health | jq
+              echo "✅ Gateway started successfully with auto-setup complete"
               break
             fi
-            echo "Waiting... ($i/30)"
-            sleep 2
+            echo "Waiting for gateway setup... ($i/60)"
+            sleep 3
           done
 
           if ! curl -s http://localhost:8080/health > /dev/null 2>&1; then
-            echo "❌ Failed to start Custom MCP Server"
-            echo "Server logs:"
-            cat bridge.log
+            echo "❌ Gateway failed to start or setup failed"
+            echo "📋 Gateway logs:"
+            cat gateway.log
             exit 1
           fi
+
+          echo "📊 Gateway status with discovered servers:"
+          curl -s http://localhost:8080/health | jq .
 
       - name: Install and Start Cloudflare Tunnel
         run: |
@@ -179,28 +191,30 @@ jobs:
           echo "⚠️  The existing mcp.pavlovcik.com service should continue working"
           echo "⚠️  This prevents breaking the service when tunnel registration fails"
 
-      - name: Keep Server Running  
+      - name: Keep Gateway Running
         if: env.ENDPOINT_WORKING == 'true'
         run: |
-          echo "🔄 Custom MCP Server running"
-          echo "⏱️  Server has a 1-hour inactivity timeout"
+          echo "🔄 Gateway is running with built-in inactivity timeout"
+          echo "⏱️  Server auto-shuts down after 1 hour of inactivity"
           echo "🔍 Health check requests do not reset the timeout timer"
           echo ""
 
-          # Monitor server process and health
-          BRIDGE_PID=$(pgrep -f "node server.js")
-          while kill -0 $BRIDGE_PID 2>/dev/null; do
-            HEALTH_RESPONSE=$(curl -s http://localhost:8080/health 2>/dev/null || echo "{}")
-            if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
-              UPTIME=$(echo "$HEALTH_RESPONSE" | jq -r '.uptime // 0')
-              SESSIONS=$(echo "$HEALTH_RESPONSE" | jq -r '.activeSessions // 0')
-              TIMEOUT_SECS=$(echo "$HEALTH_RESPONSE" | jq -r '.timeUntilTimeout // 900')
+          # Monitor gateway health and let it self-manage shutdown
+          while true; do
+            HEALTH=$(curl -s http://localhost:8080/health 2>/dev/null || echo "failed")
+            if echo "$HEALTH" | jq -e . > /dev/null 2>&1; then
+              SERVERS=$(echo "$HEALTH" | jq -r '.servers // 0')
+              UPTIME=$(echo "$HEALTH" | jq -r '.uptime // 0')
+              SESSIONS=$(echo "$HEALTH" | jq -r '.activeSessions // 0')
+              TIMEOUT_SECS=$(echo "$HEALTH" | jq -r '.timeUntilTimeout // 0')
               TIMEOUT_MINS=$((TIMEOUT_SECS / 60))
-              echo "[$(date)] Server running - Uptime: ${UPTIME}s, Active sessions: ${SESSIONS}, Timeout in: ${TIMEOUT_MINS} minutes"
+              echo "[$(date)] Gateway healthy - Uptime: ${UPTIME}s, Active sessions: ${SESSIONS}, Timeout in: ${TIMEOUT_MINS}m"
+            else
+              echo "[$(date)] Gateway has shut down or become unreachable"
+              break
             fi
-            sleep 60
+            sleep 300 # Check every 5 minutes
           done
-          echo "Server has shut down"
 
       - name: Upload Logs
         if: always()
@@ -208,5 +222,5 @@ jobs:
         with:
           name: gateway-logs
           path: |
-            src/bridge/bridge.log
-            logs/cloudflared.log
+            src/gateway/gateway.log
+            tunnel.log
