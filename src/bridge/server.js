@@ -1,5 +1,6 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
+const SubmoduleManager = require('./submodule-manager');
 
 const app = express();
 const port = process.env.PORT || 8081;
@@ -11,6 +12,9 @@ const SERVER_VERSION = '1.0.0';
 
 // Session storage (in production, use Redis or database)
 const sessions = new Map();
+
+// Initialize submodule manager
+const submoduleManager = new SubmoduleManager();
 
 app.use(express.json({ limit: '10mb' }));
 
@@ -30,7 +34,8 @@ const recentRequests = [];
 const MAX_REQUESTS = 10;
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+  const submoduleServers = submoduleManager.getServerList();
   res.json({
     status: 'healthy',
     protocol: MCP_PROTOCOL_VERSION,
@@ -38,7 +43,9 @@ app.get('/health', (req, res) => {
     version: SERVER_VERSION,
     commit: (process.env.GITHUB_SHA || 'unknown').substring(0, 8),
     uptime: process.uptime(),
-    activeSessions: sessions.size
+    activeSessions: sessions.size,
+    submoduleServers: submoduleServers.length,
+    submodules: submoduleServers.map(s => ({ name: s.name, processes: s.status.processes.length }))
   });
 });
 
@@ -388,6 +395,16 @@ const handleMCPPost = async (req, res) => {
           result = {};
           break;
 
+        case 'logging/setLevel':
+          // Handle logging level setting
+          const { level } = params || {};
+          if (!['debug', 'info', 'warning', 'error'].includes(level)) {
+            throw new Error(`Invalid logging level: ${level}`);
+          }
+          console.log(`Logging level set to: ${level}`);
+          result = {};
+          break;
+
         default:
           throw new Error(`Method not found: ${method}`);
       }
@@ -496,12 +513,119 @@ const handleMCPDelete = async (req, res) => {
 // DELETE endpoint for session termination
 app.delete('/', validateOrigin, validateProtocolVersion, handleMCPDelete);
 
+// Add /mcp endpoint mappings for MCP Inspector compatibility
+app.get('/mcp', validateOrigin, validateProtocolVersion, handleMCPGet);
+app.post('/mcp', validateOrigin, validateProtocolVersion, validateSession, handleMCPPost);
+app.delete('/mcp', validateOrigin, validateProtocolVersion, handleMCPDelete);
+
+// Submodule MCP server endpoints
+app.get('/mcp/servers', async (req, res) => {
+  try {
+    const servers = submoduleManager.getServerList();
+    res.json({
+      servers: servers.map(s => ({
+        name: s.name,
+        endpoint: `/mcp/${s.name}`,
+        status: s.status
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Health check for specific submodule server
+app.get('/mcp/:serverName/health', async (req, res) => {
+  try {
+    const status = submoduleManager.getServerStatus(req.params.serverName);
+    if (!status) {
+      return res.status(404).json({ error: 'Server not found' });
+    }
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Reload specific submodule server
+app.post('/mcp/:serverName/reload', async (req, res) => {
+  try {
+    await submoduleManager.reloadServer(req.params.serverName);
+    res.json({ success: true, message: `Server ${req.params.serverName} reloaded` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Handle MCP requests for submodule servers
+app.post('/mcp/:serverName', validateOrigin, async (req, res) => {
+  try {
+    const { serverName } = req.params;
+    const response = await submoduleManager.handleRequest(serverName, req.body);
+    res.json(response);
+  } catch (error) {
+    console.error(`Error handling request for ${req.params.serverName}:`, error);
+    res.status(500).json({
+      jsonrpc: '2.0',
+      id: req.body?.id || null,
+      error: {
+        code: -32603,
+        message: error.message
+      }
+    });
+  }
+});
+
+// Handle GET requests for submodule servers (SSE/streaming)
+app.get('/mcp/:serverName', validateOrigin, async (req, res) => {
+  try {
+    const { serverName } = req.params;
+    const status = submoduleManager.getServerStatus(serverName);
+    
+    if (!status) {
+      return res.status(404).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32603,
+          message: `Server not found: ${serverName}`
+        }
+      });
+    }
+    
+    // For now, return server info (can be extended for SSE later)
+    res.json({
+      jsonrpc: '2.0',
+      result: {
+        server: serverName,
+        status: status,
+        protocol: MCP_PROTOCOL_VERSION
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32603,
+        message: error.message
+      }
+    });
+  }
+});
+
 // Start server
-app.listen(port, () => {
+app.listen(port, async () => {
   console.log(`MCP Server running on port ${port}`);
   console.log(`Protocol version: ${MCP_PROTOCOL_VERSION}`);
   console.log(`Server name: ${SERVER_NAME} v${SERVER_VERSION}`);
   console.log(`Available tools: ${mcpServer.tools.map(t => t.name).join(', ')}`);
+  
+  // Initialize submodule manager
+  try {
+    await submoduleManager.initialize();
+    console.log('Submodule manager initialized');
+  } catch (error) {
+    console.error('Failed to initialize submodule manager:', error);
+  }
 });
 
 // Cleanup sessions periodically (every hour)
@@ -515,3 +639,16 @@ setInterval(() => {
     }
   }
 }, 3600000);
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  await submoduleManager.shutdown();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  await submoduleManager.shutdown();
+  process.exit(0);
+});

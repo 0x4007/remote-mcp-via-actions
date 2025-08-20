@@ -1,0 +1,25 @@
+{
+  "servers": {
+    "example": {
+      "enabled": false,
+      "command": "node",
+      "args": ["index.js"],
+      "env": {},
+      "timeout": 30000,
+      "maxInstances": 3,
+      "description": "Example configuration for stdio MCP server"
+    },
+    "example-calculator": {
+      "enabled": true,
+      "description": "Simple calculator MCP server for testing",
+      "timeout": 10000,
+      "maxInstances": 2
+    }
+  },
+  "defaults": {
+    "timeout": 30000,
+    "maxInstances": 1,
+    "restartOnCrash": true,
+    "startupTimeout": 10000
+  }
+}

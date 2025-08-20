@@ -1,0 +1,12 @@
+{
+  "name": "example-calculator-mcp",
+  "version": "1.0.0",
+  "description": "Example calculator MCP server for demonstration",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": ["mcp", "calculator", "example"],
+  "author": "",
+  "license": "MIT"
+}

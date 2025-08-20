@@ -39,7 +39,7 @@ echo "No running workflows found. Dispatching new Deploy MCP workflow..."
 # Dispatch the workflow
 if gh workflow run "$WORKFLOW" --repo "$REPO"; then
     echo "✅ Successfully dispatched Deploy MCP workflow"
-    echo "The MCP server will be available at https://mcp.pavlovcik.com in a few minutes"
+    echo "The MCP server will be available at https://mcp.pavlovcik.com in 30 seconds"
     
     # Wait a moment for the workflow to register
     sleep 3
