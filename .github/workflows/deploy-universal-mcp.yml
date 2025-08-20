@@ -8,12 +8,6 @@ name: Deploy Universal MCP Gateway
 
 on:
   workflow_dispatch:
-    inputs:
-      timeout_hours:
-        description: 'Server timeout in hours'
-        required: false
-        default: '0.5'
-        type: string
 
 jobs:
   deploy:
@@ -65,7 +59,6 @@ jobs:
         working-directory: src/gateway
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          OPENROUTER_TOKEN: ${{ secrets.OPENROUTER_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
@@ -74,12 +67,8 @@ jobs:
           echo "🚀 Starting Universal MCP Gateway with auto-setup..."
 
           # Ensure API key is available
-          if [[ -z "${OPENROUTER_API_KEY}" && -n "${OPENROUTER_TOKEN}" ]]; then
-            export OPENROUTER_API_KEY="${OPENROUTER_TOKEN}"
-          fi
-
           if [[ -z "${OPENROUTER_API_KEY}" ]]; then
-            echo "❌ No OPENROUTER_API_KEY or OPENROUTER_TOKEN found"
+            echo "❌ No OPENROUTER_API_KEY found"
             exit 1
           fi
 

@@ -49,7 +49,7 @@ export class UniversalMCPGateway {
     
     // Run universal setup for servers that need it
     const setupEnvironment = {
-      OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_TOKEN || '',
+      OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
       OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
       GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
       XAI_API_KEY: process.env.XAI_API_KEY || '',
