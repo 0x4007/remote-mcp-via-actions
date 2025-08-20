@@ -57,20 +57,27 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Verify submodules
+      - name: Initialize and update submodules
         run: |
-          echo "Checking submodules..."
+          echo "Initializing submodules..."
+          git submodule init
+          git submodule update --recursive
+          echo ""
+          echo "Submodule status:"
           git submodule status
           echo ""
           echo "MCP servers directory:"
           ls -la mcp-servers/
           echo ""
-          if [ -d "mcp-servers/zen-mcp-server" ]; then
-            echo "✅ Zen server submodule found"
+          if [ -d "mcp-servers/zen-mcp-server" ] && [ -f "mcp-servers/zen-mcp-server/server.py" ]; then
+            echo "✅ Zen server submodule found and populated"
             ls -la mcp-servers/zen-mcp-server/ | head -10
           else
-            echo "❌ Zen server submodule NOT found!"
+            echo "❌ Zen server submodule NOT properly initialized!"
+            echo "Contents of mcp-servers/zen-mcp-server:"
+            ls -la mcp-servers/zen-mcp-server/ || echo "Directory not found"
           fi
 
       - name: Set up Node.js
@@ -115,9 +122,15 @@ jobs:
           export DEPLOYMENT_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           export OPENROUTER_API_KEY="${OPENROUTER_API_KEY}"
 
+          # Debug: Check what servers are available
+          echo "Checking available MCP servers:"
+          ls -la ../../mcp-servers/
+          echo ""
+          
           # Start the custom MCP server
           echo "Starting Custom MCP Server..."
           echo "Deployment version: ${GITHUB_SHA:0:8}"
+          echo "OPENROUTER_API_KEY is ${OPENROUTER_API_KEY:+set}${OPENROUTER_API_KEY:-not set}"
           nohup node server.js > bridge.log 2>&1 &
           BRIDGE_PID=$!
           echo "Custom MCP Server started with PID: $BRIDGE_PID"
@@ -144,6 +157,14 @@ jobs:
             cat bridge.log
             exit 1
           fi
+          
+          # Show server startup logs
+          echo ""
+          echo "Server startup logs (first 50 lines):"
+          head -50 bridge.log
+          echo ""
+          echo "Checking for Zen server initialization:"
+          grep -i "zen" bridge.log || echo "No Zen server logs found"
 
       - name: Set up Cloudflare Tunnel
         uses: AnimMouse/setup-cloudflared@v1
