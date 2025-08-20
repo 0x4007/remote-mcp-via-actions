@@ -32,44 +32,43 @@ export class ServerDiscoveryEngine {
   }
   
   private async detectServer(name: string, serverPath: string): Promise<MCPServerDescriptor | null> {
+    console.log(`🔍 Universal detection for ${name}:`);
+    
+    const binaryPath = path.join(serverPath, name);
+    const hasBinary = fs.existsSync(binaryPath) && this.isExecutable(binaryPath);
+    const hasPython = fs.existsSync(path.join(serverPath, 'server.py')) || 
+                     fs.existsSync(path.join(serverPath, 'pyproject.toml')) ||
+                     fs.existsSync(path.join(serverPath, 'requirements.txt'));
+    const hasNodeJs = fs.existsSync(path.join(serverPath, 'package.json'));
+    
+    console.log(`  - Binary executable: ${hasBinary}`);
+    console.log(`  - Python files: ${hasPython}`);
+    console.log(`  - Node.js files: ${hasNodeJs}`);
+    
     // Detect setup script (Universal Setup Script Convention)
     const setupScript = this.detectSetupScript(serverPath);
     
-    // Special case: zen-mcp-server should always be detected as Python
-    // because its binary wrapper depends on a virtual environment that may not exist
-    if (name === 'zen-mcp-server' && 
-        (fs.existsSync(path.join(serverPath, 'server.py')) || 
-         fs.existsSync(path.join(serverPath, 'pyproject.toml')))) {
-      const descriptor = this.createPythonDescriptor(name, serverPath);
-      if (descriptor && setupScript) {
-        descriptor.setupScript = setupScript;
-        descriptor.needsSetup = true;
-      }
-      return descriptor;
-    }
-    
-    // Standard Priority: Binary > Python > Node.js (as recommended by expert analysis)
+    // Universal Priority: Binary > Python > Node.js
     let descriptor: MCPServerDescriptor | null = null;
     
-    // Check for binary executable
-    const binaryPath = path.join(serverPath, name);
-    if (fs.existsSync(binaryPath) && this.isExecutable(binaryPath)) {
+    if (hasBinary) {
+      console.log(`🔧 Using binary runtime for ${name}`);
       descriptor = this.createBinaryDescriptor(name, serverPath, binaryPath);
     }
-    // Check for Python server
-    else if (fs.existsSync(path.join(serverPath, 'server.py')) || 
-        fs.existsSync(path.join(serverPath, 'pyproject.toml'))) {
+    else if (hasPython) {
+      console.log(`🐍 Using Python runtime for ${name}`);
       descriptor = this.createPythonDescriptor(name, serverPath);
     }
-    // Check for Node.js server
-    else if (fs.existsSync(path.join(serverPath, 'package.json'))) {
+    else if (hasNodeJs) {
+      console.log(`📦 Using Node.js runtime for ${name}`);
       descriptor = this.createNodeDescriptor(name, serverPath);
     }
     
-    // Add setup script information to descriptor
+    // Add setup script information universally
     if (descriptor && setupScript) {
       descriptor.setupScript = setupScript;
       descriptor.needsSetup = true;
+      console.log(`✅ ${name} will use setup script: ${path.basename(setupScript)}`);
     }
     
     return descriptor;
@@ -82,10 +81,12 @@ export class ServerDiscoveryEngine {
     for (const script of setupScripts) {
       const scriptPath = path.join(serverPath, script);
       if (fs.existsSync(scriptPath) && this.isExecutable(scriptPath)) {
+        console.log(`✅ Found setup script: ${script} for server at ${serverPath}`);
         return scriptPath;
       }
     }
     
+    console.log(`ℹ️  No setup script found for server at ${serverPath}`);
     return undefined;
   }
   
@@ -123,43 +124,26 @@ export class ServerDiscoveryEngine {
   }
   
   private createPythonDescriptor(name: string, serverPath: string): MCPServerDescriptor {
-    let entrypoint = 'server.py';
+    let entrypoint = 'python'; // Use python command universally
     let args = ['-u']; // Unbuffered output
     
-    // Check for pyproject.toml to get better entry point
-    const pyprojectPath = path.join(serverPath, 'pyproject.toml');
-    if (fs.existsSync(pyprojectPath)) {
-      // Could parse TOML here for entry points, but server.py is standard
-    }
-    
-    // Special handling for zen-mcp-server (maintains compatibility)
-    if (name === 'zen-mcp-server') {
+    // Universal Python server entry point detection
+    if (fs.existsSync(path.join(serverPath, 'server.py'))) {
       args.push('server.py');
-      
-      return {
-        name,
-        path: serverPath,
-        runtime: 'python',
-        entrypoint: 'python',
-        args,
-        environment: {
-          ...process.env as Record<string, string>,
-          PYTHONPATH: '.',
-          PYTHONUNBUFFERED: '1',
-          PYTHONDONTWRITEBYTECODE: '1',
-          LOG_LEVEL: 'INFO'
-        }
-      };
+    } else if (fs.existsSync(path.join(serverPath, 'pyproject.toml'))) {
+      // Try common entry points for pyproject.toml servers
+      args.push('-m', name.replace(/-/g, '_'));
     }
     
     return {
       name,
       path: serverPath,
       runtime: 'python',
-      entrypoint: 'python',
-      args: ['-u', entrypoint],
+      entrypoint,
+      args,
       environment: {
         ...process.env as Record<string, string>,
+        PYTHONPATH: '.',
         PYTHONUNBUFFERED: '1',
         PYTHONDONTWRITEBYTECODE: '1'
       }

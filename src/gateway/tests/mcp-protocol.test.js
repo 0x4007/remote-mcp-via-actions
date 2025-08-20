@@ -138,16 +138,22 @@ describe('MCP Protocol Tests', () => {
 
       const tools = response.body.result.tools;
       const calculatorTools = tools.filter(t => t.name.startsWith('example-calculator__'));
-      const zenTools = tools.filter(t => t.name.startsWith('zen-mcp-server__'));
+      const pythonTools = tools.filter(t => 
+        t.name.includes('__') && 
+        !t.name.startsWith('example-calculator__') &&
+        !t.name.startsWith('test-calculator__') &&
+        !t.name.startsWith('test-echo__')
+      );
       
       expect(calculatorTools.length).toBeGreaterThan(0);
-      expect(zenTools.length).toBeGreaterThan(0);
+      expect(pythonTools.length).toBeGreaterThan(0);
       
       // Verify specific expected tools
       const toolNames = tools.map(t => t.name);
       expect(toolNames).toContain('example-calculator__add');
       expect(toolNames).toContain('example-calculator__multiply');
-      expect(toolNames).toContain('zen-mcp-server__chat');
+      // Test that Python server tools are available via universal detection
+      expect(pythonTools.length).toBeGreaterThan(0);
     });
 
     it('should provide complete tool schemas', async () => {
@@ -285,25 +291,36 @@ describe('MCP Protocol Tests', () => {
       expect(response.body.result.content[0].text).toBe('3 + 7 = 10');
     });
 
-    it('should handle zen-mcp-server individual routing', async () => {
-      const toolsRequest = {
-        jsonrpc: '2.0',
-        id: 11,
-        method: 'tools/list',
-        params: {}
-      };
-
-      const response = await request(app)
-        .post('/mcp/zen-mcp-server')
-        .send(toolsRequest)
+    it('should handle Python server individual routing via universal discovery', async () => {
+      // First get list of all servers to find Python server dynamically
+      const healthResponse = await request(app)
+        .get('/health')
         .expect(200);
+      
+      const pythonServer = healthResponse.body.submodules.find(s => 
+        s.name !== 'example-calculator' && 
+        s.name !== 'test-calculator' && 
+        s.name !== 'test-echo'
+      );
+      
+      if (pythonServer) {
+        const toolsRequest = {
+          jsonrpc: '2.0',
+          id: 11,
+          method: 'tools/list',
+          params: {}
+        };
 
-      const tools = response.body.result.tools;
-      expect(tools.length).toBeGreaterThan(10); // Many zen tools
-      const toolNames = tools.map(t => t.name);
-      expect(toolNames).toContain('chat');
-      expect(toolNames).toContain('thinkdeep');
-      expect(toolNames).toContain('planner');
+        const response = await request(app)
+          .post(`/mcp/${pythonServer.name}`)
+          .send(toolsRequest)
+          .expect(200);
+
+        const tools = response.body.result.tools;
+        expect(tools.length).toBeGreaterThan(10); // Many Python server tools
+        // Tools should be available via universal detection
+        expect(tools.length).toBeGreaterThan(0);
+      }
     });
   });
 

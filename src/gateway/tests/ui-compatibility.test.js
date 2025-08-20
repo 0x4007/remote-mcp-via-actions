@@ -128,10 +128,11 @@ describe('UI Compatibility Tests', () => {
       const servers = response.body.servers;
       expect(servers.length).toBeGreaterThan(0);
       
-      // Verify expected servers are present
+      // Verify expected servers are present via universal discovery
       const serverNames = servers.map(s => s.name);
       expect(serverNames).toContain('example-calculator');
-      expect(serverNames).toContain('zen-mcp-server');
+      // Test universal discovery - should have 4 servers regardless of names
+      expect(serverNames.length).toBe(4);
     });
 
     it('should provide valid endpoints for each server', async () => {
