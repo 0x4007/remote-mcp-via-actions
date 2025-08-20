@@ -116,10 +116,24 @@ class StdioToHttpWrapper extends EventEmitter {
       throw new Error(`Server directory not found: ${serverPath}`);
     }
 
-    // Prepare spawn options
+    // Prepare spawn options - merge process.env with config.env
+    // Ensure OPENROUTER_API_KEY is passed through if it exists
+    const mergedEnv = { 
+      ...process.env, 
+      ...this.config.env 
+    };
+    
+    // Debug: log environment variables for Zen server
+    if (this.serverName === 'zen-mcp-server') {
+      console.log(`[${this.serverName}] Environment check:`);
+      console.log(`  OPENROUTER_API_KEY: ${mergedEnv.OPENROUTER_API_KEY ? 'SET' : 'NOT SET'}`);
+      console.log(`  OPENAI_API_KEY: ${mergedEnv.OPENAI_API_KEY ? 'SET' : 'NOT SET'}`);
+      console.log(`  PYTHONPATH: ${mergedEnv.PYTHONPATH || 'not set'}`);
+    }
+    
     const spawnOptions = {
       cwd: serverPath,
-      env: { ...process.env, ...this.config.env },
+      env: mergedEnv,
       stdio: ['pipe', 'pipe', 'pipe']
     };
 
@@ -166,7 +180,19 @@ class StdioToHttpWrapper extends EventEmitter {
     // Handle stderr (errors/logs from stdio server)
     childProcess.stderr.on('data', (data) => {
       const stderr = data.toString();
-      console.error(`[${this.serverName}] stderr:`, stderr);
+      
+      // For Zen server, always log stderr to help debug issues
+      if (this.serverName === 'zen-mcp-server') {
+        console.log(`[${this.serverName}] stderr:`, stderr.trim());
+        
+        // Check for critical errors
+        if (stderr.includes('OPENROUTER_API_KEY') || stderr.includes('API key') || 
+            stderr.includes('ModuleNotFoundError') || stderr.includes('ImportError')) {
+          console.error(`[${this.serverName}] CRITICAL ERROR DETECTED:`, stderr);
+        }
+      } else {
+        console.error(`[${this.serverName}] stderr:`, stderr);
+      }
       
       // Store stderr in buffer for debugging
       if (!this.messageBuffer.has(processId)) {
