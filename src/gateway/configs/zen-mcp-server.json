@@ -1,0 +1,28 @@
+{
+  "name": "zen-mcp-server",
+  "setupOptions": {
+    "stdinResponses": [
+      "n",
+      "n", 
+      "n",
+      "n",
+      "n"
+    ],
+    "timeoutMs": 180000,
+    "environmentOverrides": {
+      "REPLY": "n",
+      "CI": "true",
+      "DEBIAN_FRONTEND": "noninteractive"
+    }
+  },
+  "validation": {
+    "readyMarkerContent": "zen-mcp-server",
+    "requiredFiles": [
+      ".zen_venv/bin/python",
+      "server.py"
+    ],
+    "requiredDirectories": [
+      ".zen_venv"
+    ]
+  }
+}

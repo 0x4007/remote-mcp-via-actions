@@ -66,14 +66,50 @@ claude mcp add --transport http remote-mcp-bridge http://localhost:8081/mcp
 
 ## Adding New MCP Servers
 
-### Automatic Configuration
-The bridge automatically detects and configures most MCP servers:
+### Simple Servers (Automatic Configuration)
+Most MCP servers work automatically with zero configuration:
 
 ```bash
 cd mcp-servers
 git submodule add https://github.com/your/mcp-server.git
 # Server is automatically detected and tools are available!
 ```
+
+The Universal Gateway respects standard environment variables:
+- `GATEWAY_SETUP=true` - Indicates gateway-managed setup
+- `GATEWAY_NON_INTERACTIVE=true` - Bypasses interactive prompts
+- `GATEWAY_SKIP_INTEGRATIONS=true` - Skips external integrations during setup
+
+### Complex Servers (Custom Configuration)  
+For servers that need custom setup behavior (like interactive prompts or special environment variables), create a configuration file:
+
+```bash
+# Create server-specific configuration
+vi src/gateway/configs/{server-name}.json
+```
+
+Example configuration (`src/gateway/configs/zen-mcp-server.json`):
+```json
+{
+  "name": "zen-mcp-server",
+  "setupOptions": {
+    "stdinResponses": ["n", "n", "n", "n", "n"],
+    "timeoutMs": 180000,
+    "environmentOverrides": {
+      "REPLY": "n",
+      "CI": "true", 
+      "DEBIAN_FRONTEND": "noninteractive"
+    }
+  },
+  "validation": {
+    "readyMarkerContent": "zen-mcp-server",
+    "requiredFiles": [".zen_venv/bin/python", "server.py"],
+    "requiredDirectories": [".zen_venv"]
+  }
+}
+```
+
+The gateway will automatically use the configuration if it exists, otherwise it uses universal defaults.
 
 ### Manual Configuration
 For servers with special requirements, edit `mcp-servers/config.json`:

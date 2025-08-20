@@ -7,3 +7,10 @@
 # Logs
 *.log
 npm-debug.log*
+
+# Keep configs directory in git but ignore any custom configs
+!configs/
+configs/*.json
+!configs/server-config-schema.json
+!configs/README.md
+!configs/zen-mcp-server.json

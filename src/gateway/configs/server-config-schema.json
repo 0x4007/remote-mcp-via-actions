@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Server name matching the directory name"
+    },
+    "setupOptions": {
+      "type": "object",
+      "properties": {
+        "stdinResponses": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Responses to send to stdin for interactive prompts"
+        },
+        "timeoutMs": {
+          "type": "number",
+          "minimum": 1000,
+          "description": "Setup timeout in milliseconds"
+        },
+        "environmentOverrides": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Environment variables to override"
+        },
+        "args": {
+          "type": "array", 
+          "items": { "type": "string" },
+          "description": "Additional arguments for setup script"
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "properties": {
+        "readyMarkerContent": {
+          "type": "string",
+          "description": "Expected content of ready marker file"
+        },
+        "requiredFiles": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files that must exist after successful setup"
+        },
+        "requiredDirectories": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Directories that must exist after successful setup"
+        }
+      }
+    }
+  },
+  "required": ["name"]
+}

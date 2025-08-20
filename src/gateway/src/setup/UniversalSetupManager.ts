@@ -2,6 +2,8 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { MCPServerDescriptor } from '../types';
+import { ServerConfigManager, ServerSetupConfig } from './ServerConfigManager';
+import { EnvironmentManager } from './StandardEnvironment';
 
 export interface SetupResult {
   success: boolean;
@@ -11,6 +13,7 @@ export interface SetupResult {
 
 export class UniversalSetupManager {
   private setupTimeoutMs = 120000; // 2 minutes timeout for setup scripts
+  private configManager = new ServerConfigManager();
   
   /**
    * Execute setup script for a server according to Universal Setup Script Convention
@@ -32,28 +35,41 @@ export class UniversalSetupManager {
     const serverName = server.name;
     const setupScript = server.setupScript;
     const workingDir = server.path;
-    const readyMarker = path.join(workingDir, '.gateway-ready');
+    
+    // Use gateway state directory instead of modifying submodule
+    const gatewayStateDir = path.join(process.cwd(), '.gateway-state');
+    const readyMarker = path.join(gatewayStateDir, `${serverName}.ready`);
     
     console.log(`🔧 Setting up ${serverName} using ${path.basename(setupScript)}...`);
     
     try {
+      // Ensure gateway state directory exists
+      if (!fs.existsSync(gatewayStateDir)) {
+        fs.mkdirSync(gatewayStateDir, { recursive: true });
+      }
+      
       // Remove existing ready marker
       if (fs.existsSync(readyMarker)) {
         fs.unlinkSync(readyMarker);
       }
       
-      // Prepare environment - merge gateway environment with server environment
-      const setupEnvironment = {
-        ...process.env,
-        ...environment,
-        ...server.environment,
-        GATEWAY_SETUP: 'true',
-        SERVER_NAME: serverName,
-        SERVER_PATH: workingDir
-      };
+      // Load server-specific config (if exists)
+      const serverConfig = await this.configManager.loadServerConfig(serverName);
       
-      // Execute setup script
-      const result = await this.executeSetupScript(setupScript, workingDir, setupEnvironment);
+      // Create standard environment
+      const standardEnv = EnvironmentManager.createStandardEnvironment(serverName, workingDir);
+      
+      // Merge environments: base -> custom -> server -> standard -> config overrides
+      const setupEnvironment = EnvironmentManager.mergeEnvironments(
+        process.env as Record<string, string>,
+        environment,
+        server.environment || {},
+        standardEnv,
+        serverConfig?.setupOptions?.environmentOverrides || {}
+      );
+      
+      // Execute setup script with configuration
+      const result = await this.executeSetupScript(setupScript, workingDir, setupEnvironment, serverConfig || undefined);
       
       if (!result.success) {
         return {
@@ -63,11 +79,13 @@ export class UniversalSetupManager {
         };
       }
       
-      // Verify setup completed successfully
-      const validationResult = await this.validateSetup(server, readyMarker);
+      // Verify setup completed successfully and write ready marker to gateway state
+      const validationResult = await this.validateSetup(server);
       const duration = Date.now() - startTime;
       
       if (validationResult.success) {
+        // Write ready marker to gateway state directory (not submodule)
+        fs.writeFileSync(readyMarker, serverName);
         console.log(`✅ ${serverName} setup completed in ${duration}ms`);
         return { success: true, message: 'Setup completed successfully', duration };
       } else {
@@ -89,7 +107,8 @@ export class UniversalSetupManager {
   private async executeSetupScript(
     scriptPath: string, 
     workingDir: string, 
-    environment: Record<string, string>
+    environment: Record<string, string>,
+    config?: ServerSetupConfig
   ): Promise<{ success: boolean; message: string }> {
     return new Promise((resolve) => {
       const process = spawn('bash', [scriptPath], {
@@ -97,6 +116,13 @@ export class UniversalSetupManager {
         env: environment,
         stdio: ['pipe', 'pipe', 'pipe']
       });
+      
+      // Apply configuration-driven stdin responses for interactive prompts
+      if (config?.setupOptions?.stdinResponses) {
+        const responses = config.setupOptions.stdinResponses.join('\n') + '\n';
+        process.stdin.write(responses);
+        process.stdin.end();
+      }
       
       let stdout = '';
       let stderr = '';
@@ -109,10 +135,12 @@ export class UniversalSetupManager {
         stderr += data.toString();
       });
       
+      // Use configured timeout or default
+      const timeoutMs = config?.setupOptions?.timeoutMs || this.setupTimeoutMs;
       const timeout = setTimeout(() => {
         process.kill();
         resolve({ success: false, message: 'Setup script timeout' });
-      }, this.setupTimeoutMs);
+      }, timeoutMs);
       
       process.on('close', (code) => {
         clearTimeout(timeout);
@@ -132,21 +160,7 @@ export class UniversalSetupManager {
     });
   }
   
-  private async validateSetup(server: MCPServerDescriptor, readyMarker: string): Promise<{ success: boolean; message: string }> {
-    // Check for .gateway-ready marker file
-    if (fs.existsSync(readyMarker)) {
-      try {
-        const markerContent = fs.readFileSync(readyMarker, 'utf8').trim();
-        if (markerContent === 'ready' || markerContent === server.name) {
-          return { success: true, message: 'Ready marker found' };
-        } else {
-          return { success: false, message: `Invalid ready marker content: ${markerContent}` };
-        }
-      } catch (error) {
-        return { success: false, message: `Cannot read ready marker: ${error}` };
-      }
-    }
-    
+  private async validateSetup(server: MCPServerDescriptor): Promise<{ success: boolean; message: string }> {
     // Fallback validation: check if the server's main executable/entrypoint exists
     const entrypointPath = path.join(server.path, server.entrypoint);
     if (fs.existsSync(entrypointPath)) {
@@ -170,18 +184,20 @@ export class UniversalSetupManager {
       return { success: true, message: 'Entrypoint exists' };
     }
     
-    return { success: false, message: 'Setup validation failed - no ready marker or entrypoint' };
+    return { success: false, message: 'Setup validation failed - entrypoint not found' };
   }
   
   /**
    * Check if a server has been successfully set up
+   * Uses gateway state directory to avoid modifying submodules
    */
   isServerReady(server: MCPServerDescriptor): boolean {
     if (!server.setupScript || !server.needsSetup) {
       return true; // No setup required
     }
     
-    const readyMarker = path.join(server.path, '.gateway-ready');
+    const gatewayStateDir = path.join(process.cwd(), '.gateway-state');
+    const readyMarker = path.join(gatewayStateDir, `${server.name}.ready`);
     return fs.existsSync(readyMarker);
   }
   
@@ -189,7 +205,8 @@ export class UniversalSetupManager {
    * Clean up setup markers and temporary files
    */
   async cleanupServer(server: MCPServerDescriptor): Promise<void> {
-    const readyMarker = path.join(server.path, '.gateway-ready');
+    const gatewayStateDir = path.join(process.cwd(), '.gateway-state');
+    const readyMarker = path.join(gatewayStateDir, `${server.name}.ready`);
     if (fs.existsSync(readyMarker)) {
       fs.unlinkSync(readyMarker);
     }
