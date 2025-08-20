@@ -17,8 +17,8 @@
     },
     "zen-mcp-server": {
       "enabled": true,
-      "command": "python",
-      "args": ["server.py"],
+      "command": "bash",
+      "args": ["start-zen.sh"],
       "env": {
         "PYTHONPATH": ".",
         "LOG_LEVEL": "INFO",
