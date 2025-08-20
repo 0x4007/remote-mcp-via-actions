@@ -7,51 +7,69 @@ jobs:
   host-mcp:
     runs-on: ubuntu-latest
     timeout-minutes: 360  # Max 6 hours (360 minutes)
+    concurrency:
+      group: deploy-mcp-${{ github.ref }}
+      cancel-in-progress: true
 
     steps:
       - name: Cancel existing runs
+        timeout-minutes: 5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Checking for existing in-progress workflow runs..."
+          echo "Checking for existing workflow runs..."
           
           # Get the current run ID to avoid canceling ourselves
           CURRENT_RUN_ID=${{ github.run_id }}
           echo "Current run ID: $CURRENT_RUN_ID"
           
-          # Get all in-progress runs for this workflow
-          IN_PROGRESS_RUNS=$(gh run list \
-            --workflow deploy-mcp.yml \
-            --repo ${{ github.repository }} \
-            --status in_progress \
-            --json databaseId,name,createdAt \
-            -q '.[] | select(.databaseId != '$CURRENT_RUN_ID') | .databaseId')
+          # First, get the workflow ID for this workflow
+          WORKFLOW_ID=$(gh api repos/${{ github.repository }}/actions/workflows \
+            --jq '.workflows[] | select(.path == ".github/workflows/deploy-mcp.yml") | .id')
           
-          if [ -z "$IN_PROGRESS_RUNS" ]; then
-            echo "✓ No other in-progress workflow runs found."
+          if [ -z "$WORKFLOW_ID" ]; then
+            echo "❌ Could not find workflow ID for deploy-mcp.yml"
+            echo "Available workflows:"
+            gh api repos/${{ github.repository }}/actions/workflows --jq '.workflows[] | "\(.name): \(.path)"'
+            exit 1
+          fi
+          
+          echo "Workflow ID: $WORKFLOW_ID"
+          
+          # Get all runs for this workflow (in_progress, queued, requested)
+          echo "Getting all active runs for this workflow..."
+          ACTIVE_RUNS=$(gh api repos/${{ github.repository }}/actions/workflows/$WORKFLOW_ID/runs \
+            --jq '.workflow_runs[] | select(.status == "in_progress" or .status == "queued" or .status == "requested") | select(.id != '$CURRENT_RUN_ID') | .id')
+          
+          if [ -z "$ACTIVE_RUNS" ]; then
+            echo "✅ No other active workflow runs found."
           else
-            echo "Found in-progress runs to cancel:"
-            echo "$IN_PROGRESS_RUNS"
+            echo "Found active runs to cancel:"
+            echo "$ACTIVE_RUNS"
             echo ""
             
-            # Cancel each running workflow
-            echo "$IN_PROGRESS_RUNS" | while read -r RUN_ID; do
+            # Cancel each running workflow with timeout
+            echo "$ACTIVE_RUNS" | while read -r RUN_ID; do
               if [ ! -z "$RUN_ID" ]; then
                 echo "Cancelling run $RUN_ID..."
-                gh run cancel $RUN_ID --repo ${{ github.repository }} || true
+                timeout 30 gh run cancel $RUN_ID --repo ${{ github.repository }} || {
+                  echo "⚠️ Failed to cancel run $RUN_ID (timeout or error)"
+                }
               fi
             done
             
             echo ""
-            echo "✓ All previous runs cancelled. Proceeding with new deployment."
+            echo "✅ All previous runs cancelled. Proceeding with new deployment."
             
-            # Wait a moment for cancellations to process
-            sleep 5
+            # Wait for cancellations to process
+            echo "Waiting for cancellations to process..."
+            sleep 10
           fi
           
           echo ""
           echo "Current workflow status:"
-          gh run list --workflow deploy-mcp.yml --repo ${{ github.repository }} --limit 5
+          gh api repos/${{ github.repository }}/actions/workflows/$WORKFLOW_ID/runs \
+            --jq '.workflow_runs[0:5][] | "\(.id): \(.status) (\(.created_at))"' || echo "Failed to get status"
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -59,21 +77,25 @@ jobs:
           submodules: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Clone Zen MCP Server
+      - name: Initialize submodules
         run: |
-          echo "Removing empty submodule directory if exists..."
-          rm -rf mcp-servers/zen-mcp-server
-          
-          echo "Cloning Zen MCP Server directly..."
-          git clone https://github.com/BeehiveInnovations/zen-mcp-server.git mcp-servers/zen-mcp-server
+          echo "Initializing git submodules..."
+          git submodule sync --recursive
+          git submodule update --init --recursive --force
           
           echo ""
-          echo "Verifying Zen server files:"
+          echo "Verifying Zen server submodule:"
           if [ -f "mcp-servers/zen-mcp-server/server.py" ]; then
-            echo "✅ Zen server successfully cloned"
-            ls -la mcp-servers/zen-mcp-server/ | head -15
+            echo "✅ Zen server submodule initialized successfully"
+            cd mcp-servers/zen-mcp-server
+            echo "Zen server commit: $(git rev-parse HEAD)"
+            echo "Zen server branch: $(git branch --show-current || echo 'detached HEAD')"
+            ls -la | head -15
+            cd ../..
           else
-            echo "❌ Failed to clone Zen server"
+            echo "❌ Failed to initialize Zen server submodule"
+            echo "Checking submodule status:"
+            git submodule status
             ls -la mcp-servers/
           fi
           

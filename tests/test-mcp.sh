@@ -42,7 +42,7 @@ echo "==========================================="
 echo "1. Testing Accept Header Validation..."
 
 # Test 1a: Missing Accept header (should fail)
-RESPONSE=$(curl -s -X POST "$MCP_URL" \
+RESPONSE=$(curl -s --connect-timeout 10 --max-time 30 -X POST "$MCP_URL" \
   -H "Content-Type: application/json" \
   -w "\nHTTP_STATUS:%{http_code}" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' 2>/dev/null)
@@ -54,7 +54,7 @@ else
 fi
 
 # Test 1b: Invalid Accept header (should fail)
-RESPONSE=$(curl -s -X POST "$MCP_URL" \
+RESPONSE=$(curl -s --connect-timeout 10 --max-time 30 -X POST "$MCP_URL" \
   -H "Content-Type: application/json" \
   -H "Accept: text/plain" \
   -w "\nHTTP_STATUS:%{http_code}" \
@@ -67,7 +67,7 @@ else
 fi
 
 # Test 1c: Valid Accept header (should succeed)
-RESPONSE=$(curl -s -X POST "$MCP_URL" \
+RESPONSE=$(curl -s --connect-timeout 10 --max-time 30 -X POST "$MCP_URL" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -w "\nHTTP_STATUS:%{http_code}" \
@@ -107,7 +107,7 @@ fi
 echo -e "\n3. Testing Response Format Handling..."
 
 # Test 3a: Check if response is SSE format
-RESPONSE=$(curl -s -X POST "$MCP_URL" \
+RESPONSE=$(curl -s --connect-timeout 10 --max-time 30 -X POST "$MCP_URL" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -w "\nCONTENT_TYPE:%{content_type}\nHTTP_STATUS:%{http_code}" \
@@ -153,7 +153,7 @@ echo "==========================================="
 
 # Test 4: Initialize MCP session
 echo "4. Testing MCP Initialize..."
-INIT_RESPONSE=$(curl -s -X POST "$MCP_URL" \
+INIT_RESPONSE=$(curl -s --connect-timeout 10 --max-time 30 -X POST "$MCP_URL" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -d '{
@@ -182,7 +182,7 @@ if echo "$JSON_RESPONSE" | jq -e '.result.protocolVersion' >/dev/null 2>&1; then
     report_test "MCP Initialize" "PASS" "Protocol version: $PROTOCOL_VERSION"
     
     # Check for session ID in headers (if supported)
-    SESSION_ID_RESPONSE=$(curl -s -X POST "$MCP_URL" \
+    SESSION_ID_RESPONSE=$(curl -s --connect-timeout 10 --max-time 30 -X POST "$MCP_URL" \
       -H "Content-Type: application/json" \
       -H "Accept: application/json, text/event-stream" \
       -I \
@@ -199,7 +199,7 @@ fi
 
 # Test 5: List available tools
 echo "5. Testing Tools List..."
-TOOLS_RESPONSE=$(curl -s -X POST "$MCP_URL" \
+TOOLS_RESPONSE=$(curl -s --connect-timeout 10 --max-time 30 -X POST "$MCP_URL" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -d '{
@@ -218,7 +218,7 @@ fi
 
 # Test 6: List available resources
 echo "6. Testing Resources List..."
-RESOURCES_RESPONSE=$(curl -s -X POST "$MCP_URL" \
+RESOURCES_RESPONSE=$(curl -s --connect-timeout 10 --max-time 30 -X POST "$MCP_URL" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -d '{
@@ -237,7 +237,7 @@ fi
 
 # Test 7: Execute a tool
 echo "7. Testing Tool Execution..."
-TOOL_EXEC_RESPONSE=$(curl -s -X POST "$MCP_URL" \
+TOOL_EXEC_RESPONSE=$(curl -s --connect-timeout 10 --max-time 30 -X POST "$MCP_URL" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -d '{
@@ -262,7 +262,7 @@ fi
 
 # Test 8: Read a resource
 echo "8. Testing Resource Reading..."
-RESOURCE_READ_RESPONSE=$(curl -s -X POST "$MCP_URL" \
+RESOURCE_READ_RESPONSE=$(curl -s --connect-timeout 10 --max-time 30 -X POST "$MCP_URL" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -d '{
@@ -303,7 +303,7 @@ fi
 echo "10. Testing Concurrent Requests..."
 START_TIME=$(date +%s)
 for i in {1..5}; do
-    curl -s -X POST "$MCP_URL" \
+    curl -s --connect-timeout 10 --max-time 30 -X POST "$MCP_URL" \
       -H "Content-Type: application/json" \
       -H "Accept: application/json, text/event-stream" \
       -d "{\"jsonrpc\":\"2.0\",\"id\":$i,\"method\":\"tools/list\"}" \
