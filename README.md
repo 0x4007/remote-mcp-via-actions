@@ -1,218 +1,272 @@
-# Remote MCP via Actions POC
+# MCP Server Aggregator with STDIO-to-HTTP Bridge
 
-Proof of concept demonstrating HTTP-based MCP (Model Context Protocol) server access via multiple deployment methods.
+A robust bridge that aggregates multiple stdio-based MCP (Model Context Protocol) servers and exposes them through a unified HTTP endpoint. Features automatic tool discovery, stateful connection handling, and protocol version negotiation for compatibility with various MCP server implementations.
 
 ## What it does
 
-This POC provides **MCP Streamable HTTP** compliant servers that proxy requests to `test.kukapay.com/api/mcp`:
+This system provides a **unified MCP HTTP endpoint** that aggregates tools from multiple stdio-based MCP servers:
 
 > **MCP Specification**: This implementation follows the [Model Context Protocol Streamable HTTP transport (2025-03-26)](docs/mcp-specification/docs/specification/2025-03-26/basic/transports.mdx). See the [official MCP documentation](docs/mcp-specification/docs/) for complete protocol details.
 
-### ✅ **Streamable HTTP Transport Features**
-- **Single MCP endpoint** supporting GET, POST, and DELETE methods
-- **Accept header validation** (requires `application/json, text/event-stream`)
-- **Dual response modes**: JSON responses and SSE streaming
-- **Session management** with `Mcp-Session-Id` header support
-- **Security features**: Origin validation for DNS rebinding protection
-- **Server-initiated messages** via GET endpoint (when supported by downstream)
+### ✅ **Key Features**
+- **Automatic Server Discovery**: Automatically detects and initializes MCP servers in submodules
+- **Tool Aggregation**: Combines tools from all servers with namespace prefixing to avoid conflicts
+- **Stateful Connection Management**: Maintains persistent connections for servers that require it (e.g., Zen)
+- **Protocol Version Negotiation**: Automatically tries multiple MCP protocol versions for compatibility
+- **HTTP Streamable Transport**: Full MCP HTTP Streamable protocol support (GET, POST, DELETE)
+- **Session Management**: Proper session handling with `Mcp-Session-Id` header
+- **Hot Reload**: Individual servers can be reloaded without affecting others
 
-### 🚀 **Deployment Options**
-- **Cloudflare Worker** at `mcp.pavlovcik.com` - Production deployment
-- **Local Express.js server** on port 8081 - Development and testing
-- **GitHub Actions** - Automated deployment and testing
+### 🚀 **Current Implementation**
+- **Local Bridge Server** on port 8081 - Aggregates all MCP servers
+- **Automatic Submodule Loading** - Add servers as git submodules
+- **21+ Tools Available** - From multiple servers (main, calculator, Zen)
+- **Claude Code Integration** - Direct integration via HTTP transport
 
 ## Quick Start
 
-### Option 1: Use the deployed Cloudflare Worker
+### 1. Add MCP Servers as Submodules
 
 ```bash
-claude mcp add --transport http pavlovcik https://mcp.pavlovcik.com/mcp
+# Add any stdio-based MCP server as a submodule
+cd mcp-servers
+git submodule add https://github.com/example/mcp-server.git
+
+# Configure the server (optional - auto-detection works for most)
+vi config.json
 ```
 
-### Option 2: Run locally for development
-
-```bash
-# Start the local proxy server
-bun run src/bridge/server.js
-
-# Add to Claude Code
-claude mcp add --transport http local-mcp http://localhost:8081/mcp
-```
-
-### Troubleshooting Claude Code Connection
-
-If `claude mcp list` shows "Failed to connect", see [docs/claude-mcp-list.md](docs/claude-mcp-list.md) for detailed troubleshooting guide. Key requirements:
-- Server must accept and echo back protocol version `2024-11-05`
-- Must handle `notifications/initialized` method
-- Must return proper JSON-RPC 2.0 responses
-
-## Testing
-
-### Comprehensive Test Suite
-
-Run the complete **Streamable HTTP compliance test** suite:
-
-```bash
-# Test against production deployment
-./tests/test-mcp.sh https://mcp.pavlovcik.com/mcp
-
-# Test against local server
-./tests/test-mcp.sh http://localhost:8081/mcp
-```
-
-The test suite validates:
-- ✅ **Accept header validation** (406 error responses)
-- ✅ **GET endpoint** for server-initiated messages
-- ✅ **DELETE endpoint** for session termination
-- ✅ **Response format detection** (JSON vs SSE)
-- ✅ **MCP protocol compliance** (initialize, tools, resources)
-- ✅ **Concurrent request handling**
-- ✅ **Session management** support
-
-### MCP Inspector UI
-
-Use the MCP Inspector for interactive testing and debugging:
-
-```bash
-# Start MCP Inspector UI
-npm run inspector
-
-# Start both server and inspector together
-npm run dev:all
-
-# Build inspector for production
-npm run inspector:build
-
-# Start built inspector
-npm run inspector:start
-```
-
-The MCP Inspector provides:
-- Interactive connection to MCP servers
-- Visual tool exploration and testing
-- Real-time message inspection
-- Session management UI
-
-### Manual Testing
-
-The proxy servers provide access to a `calculate_sum` tool for manual testing:
-
-```bash
-# Test the initialize handshake
-curl -X POST https://mcp.pavlovcik.com/mcp \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"roots":{"listChanged":false}},"clientInfo":{"name":"test-client","version":"1.0.0"}}}'
-
-# List available tools
-curl -X POST https://mcp.pavlovcik.com/mcp \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
-
-# Call the calculate_sum tool
-curl -X POST https://mcp.pavlovcik.com/mcp \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"calculate_sum","arguments":{"numbers":[1,2,3,4,5]}}}'
-```
-
-## Documentation
-
-- **[docs/API.md](docs/API.md)** - Detailed API documentation and examples
-- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Deployment guide for local and Cloudflare environments
-- **[docs/TESTING.md](docs/TESTING.md)** - Comprehensive testing guide and Streamable HTTP compliance validation
-- **[docs/mcp-specification/](docs/mcp-specification/)** - Official MCP specification (submodule)
-
-## Architecture
-
-### Components
-
-- **`src/cloudflare/worker.js`** - Cloudflare Worker for production deployment
-- **`src/cloudflare/wrangler.toml`** - Worker configuration and deployment settings
-- **`src/bridge/server.js`** - Express.js server for local development
-- **`package.json`** - Dependencies and npm scripts
-- **`.github/workflows/mcp-test.yml`** - CI/CD testing workflow
-
-### Key Features
-
-#### ✅ **Streamable HTTP Transport (MCP 2025-03-26)**
-- **Single endpoint**: GET, POST, DELETE methods on `/mcp`
-- **Content negotiation**: Supports both JSON and SSE responses
-- **Accept header validation**: Enforces proper client capabilities
-- **Session management**: `Mcp-Session-Id` header support
-- **Security**: Origin validation prevents DNS rebinding attacks
-
-#### 🔧 **Infrastructure Features**
-- **CORS Support**: Configured for cross-origin requests from web clients
-- **Error Handling**: Proper JSON-RPC error responses with HTTP status codes
-- **Health Monitoring**: `/health` endpoint for status checking
-- **Concurrent Handling**: Multi-request support with proper streaming
-
-## Deployment
-
-### Cloudflare Worker
-
-```bash
-cd src/cloudflare
-npx wrangler deploy
-```
-
-### Local Development
+### 2. Start the Bridge Server
 
 ```bash
 # Install dependencies
 bun install
 
-# Start the development server
-bun run dev
-
-# Or run directly
-bun run src/bridge/server.js
+# Start the bridge server
+cd src/bridge
+bun server.js
 ```
+
+### 3. Add to Claude Code
+
+```bash
+# Add the aggregated MCP endpoint to Claude Code
+claude mcp add --transport http remote-mcp-bridge http://localhost:8081/mcp
+```
+
+## Adding New MCP Servers
+
+### Automatic Configuration
+The bridge automatically detects and configures most MCP servers:
+
+```bash
+cd mcp-servers
+git submodule add https://github.com/your/mcp-server.git
+# Server is automatically detected and tools are available!
+```
+
+### Manual Configuration
+For servers with special requirements, edit `mcp-servers/config.json`:
+
+```json
+{
+  "servers": {
+    "your-server": {
+      "enabled": true,
+      "command": "python",
+      "args": ["server.py"],
+      "env": {
+        "API_KEY": "your-key"
+      },
+      "requiresStatefulConnection": true,  // For servers like Zen
+      "maxInstances": 1,
+      "timeout": 60000
+    }
+  }
+}
+```
+
+## Available Tools
+
+The current setup exposes **21 tools** from three servers:
+
+### Main Server (2 tools)
+- `calculate_sum` - Calculate the sum of numbers
+- `echo` - Echo back a message
+
+### Calculator Server (3 tools)
+- `example-calculator__add` - Add two numbers
+- `example-calculator__multiply` - Multiply two numbers
+- `example-calculator__divide` - Divide two numbers
+
+### Zen Server (16 tools)
+- `zen-mcp-server__chat` - General chat and collaborative thinking
+- `zen-mcp-server__thinkdeep` - Deep thinking and analysis
+- `zen-mcp-server__planner` - Planning and task breakdown
+- `zen-mcp-server__consensus` - Multi-perspective analysis
+- `zen-mcp-server__codereview` - Code review and analysis
+- `zen-mcp-server__precommit` - Pre-commit code checks
+- `zen-mcp-server__debug` - Debug assistance
+- `zen-mcp-server__secaudit` - Security audit
+- `zen-mcp-server__docgen` - Documentation generation
+- `zen-mcp-server__analyze` - Code analysis
+- `zen-mcp-server__refactor` - Code refactoring
+- `zen-mcp-server__tracer` - Trace and debug
+- `zen-mcp-server__testgen` - Test generation
+- `zen-mcp-server__challenge` - Challenge assumptions
+- `zen-mcp-server__listmodels` - List available AI models
+- `zen-mcp-server__version` - Version information
+
+## Testing
+
+### Using MCP Inspector
+
+```bash
+# Start the MCP Inspector
+cd tests/mcp-inspector
+npm start
+
+# Open browser to http://localhost:6274
+# Connect to: http://localhost:8081/mcp (HTTP Streamable)
+```
+
+### Test with Claude Code
+
+```bash
+# Check server status
+claude mcp list
+
+# Use tools in Claude Code
+# Type @ to see available tools
+# Example: @remote-mcp-bridge zen-mcp-server__version
+```
+
+### Manual Testing
+
+```bash
+# List all available tools (should show 21)
+curl -s -X POST http://localhost:8081/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":"test"}' | jq
+
+# Call a Zen tool
+curl -s -X POST http://localhost:8081/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"zen-mcp-server__version","arguments":{}},"id":"test"}' | jq
+
+# Call the calculator
+curl -s -X POST http://localhost:8081/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"example-calculator__add","arguments":{"a":5,"b":3}},"id":"test"}' | jq
+```
+
+## Architecture Details
+
+### STDIO-to-HTTP Bridge (`src/bridge/stdio-wrapper.js`)
+- Manages process pools for each MCP server
+- Handles initialization with protocol version negotiation
+- Sends required `initialized` notifications for strict servers
+- Maintains stateful connections for servers that require it
+- Automatic process restart on crashes
+
+### Submodule Manager (`src/bridge/submodule-manager.js`)
+- Auto-discovers servers in `mcp-servers/` directory
+- Detects language (Python/Node.js) and entry points
+- Loads configuration from `config.json`
+- Aggregates tools with namespace prefixing
+- Routes tool calls to appropriate servers
+
+### Main Server (`src/bridge/server.js`)
+- Express.js server with MCP HTTP Streamable protocol
+- Session management and protocol version handling
+- Health monitoring and auto-shutdown after inactivity
+- CORS support for web clients
+
+## Configuration Reference
+
+### Server Configuration (`mcp-servers/config.json`)
+
+```json
+{
+  "servers": {
+    "server-name": {
+      "enabled": true,                    // Enable/disable server
+      "command": "python",                // Command to run (auto-detected if not set)
+      "args": ["server.py"],             // Arguments (auto-detected if not set)
+      "env": {                           // Environment variables
+        "API_KEY": "..."
+      },
+      "timeout": 60000,                  // Request timeout in ms
+      "maxInstances": 1,                 // Max process instances (1 for stateful)
+      "restartOnCrash": true,            // Auto-restart on crash
+      "requiresStatefulConnection": true, // For servers like Zen
+      "protocolVersion": "2024-11-05"    // Override protocol version
+    }
+  },
+  "defaults": {
+    "timeout": 30000,
+    "maxInstances": 1,
+    "restartOnCrash": true
+  }
+}
+```
+
+## Troubleshooting
+
+### Server Not Appearing
+1. Check if server directory exists in `mcp-servers/`
+2. Verify server has valid entry point (package.json, server.py, etc.)
+3. Check `config.json` if server is not disabled
+4. Look at server logs in console output
+
+### Tools Not Working
+1. Check if server requires API keys in environment
+2. Verify server supports the MCP protocol version
+3. Some servers need `requiresStatefulConnection: true`
+4. Check server stderr output for errors
+
+### Connection Issues
+1. Ensure server is running on port 8081
+2. Check with `curl http://localhost:8081/health`
+3. Verify no other process is using the port
+4. Try restarting the server
 
 ## API Endpoints
 
-### Local Server (port 8081)
+### Main MCP Endpoint
+- **POST `/mcp`** - MCP protocol requests (tools/list, tools/call, etc.)
+- **GET `/mcp`** - HTTP streaming for server-initiated messages
+- **DELETE `/mcp`** - Session termination
 
-#### MCP Streamable HTTP Endpoints
-- **POST `/mcp`** - Client requests (requires `Accept: application/json, text/event-stream`)
-- **GET `/mcp`** - Server-initiated messages (returns 405 if not supported by downstream)  
-- **DELETE `/mcp`** - Session termination (requires `Mcp-Session-Id` header)
-
-#### Infrastructure Endpoints
-- **GET `/health`** - Health check and server status
-- **OPTIONS `/*`** - CORS preflight handling
-
-### Cloudflare Worker
-
-- **POST `/`** - MCP protocol endpoint (proxies to kukapay with full Streamable HTTP support)
-- **OPTIONS `/`** - CORS preflight handling
+### Management Endpoints
+- **GET `/health`** - Server health and status
+- **GET `/mcp/servers`** - List all loaded MCP servers
+- **GET `/mcp/:serverName/health`** - Individual server status
+- **POST `/mcp/:serverName/reload`** - Reload specific server
 
 ## Environment Variables
 
-- **`PORT`** - Local server port (default: 8081)
-- **`TARGET_MCP_URL`** - Target MCP server URL (default: https://test.kukapay.com/api/mcp)
+- **`PORT`** - Bridge server port (default: 8081)
+- **Server-specific variables** - Set in `config.json` per server (e.g., API keys)
 
-## Verification
+## Key Innovations
 
-The setup is **fully compliant** with MCP Streamable HTTP transport specification and verified to work with:
+### Robust Server Compatibility
+- **Protocol Version Negotiation**: Automatically tries multiple MCP versions
+- **Initialized Notification**: Sends required notifications for strict servers
+- **Stateful Connection Management**: Maintains single process for stateful servers
+- **Auto-detection**: Automatically detects Python/Node.js servers and entry points
 
-### ✅ **Transport Compliance (MCP 2025-03-26)**
-- **Single endpoint architecture** (GET/POST/DELETE on `/mcp`)
-- **Accept header validation** (406 errors for invalid headers)
-- **Dual response modes** (JSON and SSE streaming)
-- **Session management** (Mcp-Session-Id header support)
-- **Security features** (Origin validation, DNS rebinding protection)
+### Production Ready Features
+- **Process Pool Management**: Efficient process handling with automatic restarts
+- **Tool Namespacing**: Prevents conflicts between servers
+- **Error Recovery**: Automatic process restart on crashes
+- **Session Management**: Proper MCP session handling
+- **Inactivity Timeout**: Auto-shutdown after 15 minutes of inactivity
 
-### ✅ **Protocol Features**
-- **MCP initialization** with protocol version negotiation
-- **Tool listing and execution** (calculate_sum available)
-- **Resource management** (test://data resource)
-- **JSON-RPC 2.0 compliance** with proper error handling
-- **Concurrent request handling** and streaming support
+## Next Steps
 
-### ✅ **Integration Support**
-- **Claude Code CLI** integration (`claude mcp add --transport http`)
-- **Web client compatibility** (CORS-enabled)
-- **Testing automation** (comprehensive test suite included)
+1. **Add More Servers**: Simply add as git submodules
+2. **Deploy to Production**: Can be deployed to any Node.js hosting
+3. **Add Authentication**: Implement auth middleware if needed
+4. **Scale Horizontally**: Deploy multiple instances with load balancing

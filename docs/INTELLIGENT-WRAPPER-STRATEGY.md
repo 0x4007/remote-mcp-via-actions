@@ -164,11 +164,12 @@ tool.description = `[${serverName}] ${originalDescription}`
 - [x] Tool aggregation from multiple servers
 - [x] Auto-detection for Node.js and Python
 
-### Phase 2: Intelligent Adaptation
+### Phase 2: Intelligent Adaptation ✅
 - [x] Stateful connection management for Zen-like servers
 - [x] Single process mode for strict servers
-- [ ] Protocol version negotiation
-- [ ] Automatic retry with fallbacks
+- [x] Protocol version negotiation
+- [x] Automatic retry with fallbacks
+- [x] Initialized notification support for strict MCP servers
 
 ### Phase 3: Advanced Features
 - [ ] Learning mode: Remember what works for each server
