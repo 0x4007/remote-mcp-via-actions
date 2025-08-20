@@ -1,0 +1,195 @@
+name: Deploy Universal MCP Gateway
+
+on:
+  workflow_dispatch:
+    inputs:
+      timeout_hours:
+        description: 'Server timeout in hours'
+        required: false
+        default: '0.25'
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    concurrency:
+      group: deploy-universal-mcp-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Initialize submodules
+        run: |
+          echo "Initializing git submodules..."
+          git submodule sync --recursive
+          git submodule update --init --recursive --force
+          echo "✅ Submodules initialized"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Python (for Python MCP servers)
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Gateway Dependencies
+        working-directory: src/gateway
+        run: |
+          npm install
+
+      - name: Install Python Dependencies (for discovered Python servers)
+        run: |
+          # Install dependencies for any Python MCP servers discovered
+          for dir in mcp-servers/*/; do
+            if [[ -f "$dir/requirements.txt" ]]; then
+              echo "Installing dependencies for $(basename "$dir")"
+              pip install -r "$dir/requirements.txt"
+            fi
+          done
+
+      - name: Start Universal MCP Gateway
+        working-directory: src/gateway
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_TOKEN: ${{ secrets.OPENROUTER_TOKEN }}
+          PORT: 8080
+        run: |
+          echo "Starting Universal MCP Gateway..."
+
+          # Ensure API key is available
+          if [[ -z "${OPENROUTER_API_KEY}" && -n "${OPENROUTER_TOKEN}" ]]; then
+            export OPENROUTER_API_KEY="${OPENROUTER_TOKEN}"
+          fi
+
+          if [[ -z "${OPENROUTER_API_KEY}" ]]; then
+            echo "❌ No OPENROUTER_API_KEY or OPENROUTER_TOKEN found"
+            exit 1
+          fi
+
+          # Start gateway in background
+          nohup npm start > gateway.log 2>&1 &
+          GATEWAY_PID=$!
+          echo "Gateway started with PID: $GATEWAY_PID"
+
+          # Wait for gateway to start
+          for i in {1..30}; do
+            if curl -s http://localhost:8080/health > /dev/null 2>&1; then
+              echo "✅ Gateway started successfully"
+              break
+            fi
+            echo "Waiting for gateway... ($i/30)"
+            sleep 2
+          done
+
+          if ! curl -s http://localhost:8080/health > /dev/null 2>&1; then
+            echo "❌ Gateway failed to start"
+            cat gateway.log
+            exit 1
+          fi
+
+          echo "📊 Gateway status:"
+          curl -s http://localhost:8080/health | jq .
+
+      - name: Set up Cloudflare Tunnel
+        uses: AnimMouse/setup-cloudflared@v1
+
+      - name: Start Cloudflare Tunnel
+        run: |
+          echo "Starting Cloudflare tunnel..."
+          nohup cloudflared tunnel --no-autoupdate --url http://localhost:8080 > tunnel.log 2>&1 &
+
+          # Wait for tunnel URL
+          for i in {1..30}; do
+            if grep -q "https://.*\.trycloudflare\.com" tunnel.log; then
+              TUNNEL_URL=$(grep -o 'https://[^[:space:]]*\.trycloudflare\.com' tunnel.log | head -1)
+              echo "TUNNEL_URL=$TUNNEL_URL" >> $GITHUB_ENV
+              echo "✅ Tunnel established: $TUNNEL_URL"
+              break
+            fi
+            echo "Waiting for tunnel... ($i/30)"
+            sleep 2
+          done
+
+          if [[ -z "$TUNNEL_URL" ]]; then
+            echo "❌ Failed to establish tunnel"
+            cat tunnel.log
+            exit 1
+          fi
+
+      - name: Test Public Endpoint
+        run: |
+          echo "Testing public endpoint..."
+          sleep 5
+
+          HEALTH_RESPONSE=$(curl -s --max-time 10 $TUNNEL_URL/health 2>&1 || echo "failed")
+
+          if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
+            echo "✅ Public endpoint working!"
+            echo "$HEALTH_RESPONSE" | jq .
+            echo "ENDPOINT_WORKING=true" >> $GITHUB_ENV
+          else
+            echo "❌ Public endpoint failed"
+            echo "Response: $HEALTH_RESPONSE"
+            echo "ENDPOINT_WORKING=false" >> $GITHUB_ENV
+          fi
+
+      - name: Display Connection Info
+        if: env.ENDPOINT_WORKING == 'true'
+        run: |
+          echo "=================================="
+          echo "🚀 Universal MCP Gateway Online!"
+          echo "=================================="
+          echo ""
+          echo "Primary URL: $TUNNEL_URL"
+          echo "Health Check: $TUNNEL_URL/health"
+          echo "MCP Protocol: $TUNNEL_URL/"
+          echo "MCP Inspector: $TUNNEL_URL/mcp"
+          echo ""
+          echo "Claude Code setup:"
+          echo "claude mcp add --transport http universal-demo $TUNNEL_URL/"
+          echo ""
+          echo "Individual servers available at:"
+          SERVERS=$(curl -s $TUNNEL_URL/health | jq -r '.serverList[]?.name // empty' 2>/dev/null || echo "")
+          if [[ -n "$SERVERS" ]]; then
+            echo "$SERVERS" | while read server; do
+              [[ -n "$server" ]] && echo "  - $TUNNEL_URL/mcp/$server"
+            done
+          fi
+
+      - name: Keep Gateway Running
+        if: env.ENDPOINT_WORKING == 'true'
+        run: |
+          echo "🔄 Gateway will run for ${{ github.event.inputs.timeout_hours || '6' }} hours"
+          echo "⏱️  Server auto-shuts down after 1 hour of inactivity"
+          echo ""
+
+          # Monitor gateway health
+          while true; do
+            HEALTH=$(curl -s http://localhost:8080/health 2>/dev/null || echo "failed")
+            if echo "$HEALTH" | jq -e . > /dev/null 2>&1; then
+              SERVERS=$(echo "$HEALTH" | jq -r '.servers // 0')
+              echo "[$(date)] Gateway healthy - $SERVERS servers active"
+            else
+              echo "[$(date)] Gateway unhealthy - may have shut down"
+              break
+            fi
+            sleep 300 # Check every 5 minutes
+          done
+
+      - name: Upload Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gateway-logs
+          path: |
+            src/gateway/gateway.log
+            tunnel.log
