@@ -11,7 +11,9 @@ This serves as a fallback when the registry loading fails in CI environments.
 import os
 import logging
 
-# Set up logging
+# Set up logging - CRITICAL: Output to stderr to avoid JSON-RPC interference
+logging.basicConfig(level=logging.INFO, stream=sys.stderr, 
+                   format='[ALIAS_INJECT] %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 def get_direct_aliases():

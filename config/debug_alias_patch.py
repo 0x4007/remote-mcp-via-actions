@@ -16,9 +16,10 @@ from pathlib import Path
 def apply_debug_patch():
     """Apply debug patch to identify why aliases aren't loading."""
     
-    # Set up detailed logging
+    # Set up detailed logging - CRITICAL: Output to stderr to avoid JSON-RPC interference
     logging.basicConfig(
         level=logging.DEBUG,
+        stream=sys.stderr,
         format='[ALIAS_DEBUG] %(asctime)s - %(levelname)s - %(message)s'
     )
     logger = logging.getLogger(__name__)

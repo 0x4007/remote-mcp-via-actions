@@ -9,12 +9,18 @@ before any other imports.
 
 import os
 import sys
+import logging
+
+# CRITICAL: Configure logging to stderr to avoid JSON-RPC interference
+logging.basicConfig(level=logging.INFO, stream=sys.stderr, 
+                   format='[ZEN_PATCH] %(levelname)s: %(message)s')
+logger = logging.getLogger(__name__)
 
 def apply_zen_server_patch():
     """Apply debug and alias injection patches if GROK_ALIASES_ENABLED is true."""
     
     if os.getenv("GROK_ALIASES_ENABLED") == "true":
-        print("[ZEN_PATCH] Grok aliases debugging enabled")
+        logger.info("Grok aliases debugging enabled")
         
         # Ensure patches are importable
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -24,18 +30,18 @@ def apply_zen_server_patch():
         try:
             # Import and apply debug patch
             import debug_alias_patch
-            print("[ZEN_PATCH] Debug patch applied successfully")
+            logger.info("Debug patch applied successfully")
         except Exception as e:
-            print(f"[ZEN_PATCH] Failed to apply debug patch: {e}")
+            logger.error(f"Failed to apply debug patch: {e}")
         
         try:
             # Import and apply direct alias injection
             import direct_alias_injection
-            print("[ZEN_PATCH] Direct alias injection applied successfully")
+            logger.info("Direct alias injection applied successfully")
         except Exception as e:
-            print(f"[ZEN_PATCH] Failed to apply direct alias injection: {e}")
+            logger.error(f"Failed to apply direct alias injection: {e}")
     else:
-        print("[ZEN_PATCH] Grok aliases debugging disabled")
+        logger.info("Grok aliases debugging disabled")
 
 # Auto-apply when this module is imported
 apply_zen_server_patch()
