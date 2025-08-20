@@ -111,6 +111,19 @@ export class UniversalSetupManager {
     config?: ServerSetupConfig
   ): Promise<{ success: boolean; message: string }> {
     return new Promise((resolve) => {
+      // Check for CI-specific setup script in CI environments
+      const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+      const serverName = path.basename(workingDir);
+      
+      // Use CI-specific setup script if available in CI environments
+      if (isCI && serverName === 'zen-mcp-server') {
+        const ciSetupPath = path.join(workingDir, 'ci-setup.sh');
+        if (fs.existsSync(ciSetupPath)) {
+          console.log(`🚀 Using CI-optimized setup script for ${serverName}`);
+          scriptPath = ciSetupPath;
+        }
+      }
+      
       const process = spawn('bash', [scriptPath], {
         cwd: workingDir,
         env: environment,
@@ -118,7 +131,12 @@ export class UniversalSetupManager {
       });
       
       // Apply configuration-driven stdin responses for interactive prompts
-      if (config?.setupOptions?.stdinResponses) {
+      // In CI mode, always send 'n' for any prompts to skip interactive sections
+      if (isCI) {
+        // Send 'n' repeatedly for any prompts in CI mode
+        process.stdin.write('n\nn\nn\nn\nn\n');
+        process.stdin.end();
+      } else if (config?.setupOptions?.stdinResponses) {
         const responses = config.setupOptions.stdinResponses.join('\n') + '\n';
         process.stdin.write(responses);
         process.stdin.end();
@@ -129,14 +147,22 @@ export class UniversalSetupManager {
       
       process.stdout.on('data', (data) => {
         stdout += data.toString();
+        // Log setup progress in CI mode for debugging
+        if (isCI) {
+          console.log(`[${serverName} setup]: ${data.toString().trim()}`);
+        }
       });
       
       process.stderr.on('data', (data) => {
         stderr += data.toString();
+        // Log errors in CI mode for debugging
+        if (isCI) {
+          console.error(`[${serverName} setup error]: ${data.toString().trim()}`);
+        }
       });
       
-      // Use configured timeout or default
-      const timeoutMs = config?.setupOptions?.timeoutMs || this.setupTimeoutMs;
+      // Use configured timeout or default (increase for CI)
+      const timeoutMs = isCI ? 180000 : (config?.setupOptions?.timeoutMs || this.setupTimeoutMs);
       const timeout = setTimeout(() => {
         process.kill();
         resolve({ success: false, message: 'Setup script timeout' });
