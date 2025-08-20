@@ -6,7 +6,7 @@ on:
 jobs:
   host-mcp:
     runs-on: ubuntu-latest
-    timeout-minutes: 360  # Max 6 hours (360 minutes)
+    timeout-minutes: 360
     concurrency:
       group: deploy-mcp-${{ github.ref }}
       cancel-in-progress: true
@@ -19,55 +19,38 @@ jobs:
         run: |
           echo "🔥 CANCELLING ALL EXISTING Deploy MCP WORKFLOWS"
           echo "=============================================="
-
-          # Get the current run ID to avoid canceling ourselves
           CURRENT_RUN_ID=${{ github.run_id }}
           echo "Current run ID: $CURRENT_RUN_ID"
-
-          # Get ALL running Deploy MCP workflows across the entire repository
           echo "Finding ALL Deploy MCP workflows in any state..."
-
           ALL_DEPLOY_RUNS=$(gh api repos/${{ github.repository }}/actions/runs \
             --paginate \
             --jq '.workflow_runs[] | select(.name == "Deploy MCP" and (.status == "in_progress" or .status == "queued" or .status == "requested" or .status == "waiting")) | select(.id != '$CURRENT_RUN_ID') | .id')
-
           echo "Found runs to cancel: $(echo "$ALL_DEPLOY_RUNS" | wc -l | tr -d ' ')"
-
           if [ -z "$ALL_DEPLOY_RUNS" ]; then
             echo "✅ No other Deploy MCP runs found."
           else
             echo "🎯 Target runs for cancellation:"
             echo "$ALL_DEPLOY_RUNS"
             echo ""
-
-            # Force cancel ALL Deploy MCP runs
             echo "🔥 FORCE CANCELLING ALL Deploy MCP RUNS..."
             echo "$ALL_DEPLOY_RUNS" | while IFS= read -r RUN_ID; do
               if [ ! -z "$RUN_ID" ] && [ "$RUN_ID" != "$CURRENT_RUN_ID" ]; then
                 echo "🔥 Cancelling Deploy MCP run: $RUN_ID"
-
-                # Try multiple approaches to ensure cancellation
                 timeout 15 gh run cancel "$RUN_ID" --repo ${{ github.repository }} 2>/dev/null || \
                 timeout 15 gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/cancel -X POST 2>/dev/null || \
                 echo "⚠️ Failed to cancel run $RUN_ID"
-
-                # Don't wait - be aggressive
                 sleep 1
               fi
             done
-
             echo ""
             echo "🔥 All Deploy MCP cancellation requests sent!"
             echo "⏳ Waiting 15 seconds for cancellations to process..."
             sleep 15
           fi
-
-          # Final status check
           echo ""
           echo "📊 Final Deploy MCP workflow status:"
           gh api repos/${{ github.repository }}/actions/runs \
             --jq '.workflow_runs[] | select(.name == "Deploy MCP") | "\(.id): \(.status) - \(.created_at)"' | head -10 || echo "Failed to get status"
-
           echo ""
           echo "✅ Cancellation phase complete. This deployment will now proceed as the ONLY active Deploy MCP workflow."
 
@@ -82,7 +65,6 @@ jobs:
           echo "Initializing git submodules..."
           git submodule sync --recursive
           git submodule update --init --recursive --force
-
           echo ""
           echo "Verifying Zen server submodule:"
           if [ -f "mcp-servers/zen-mcp-server/server.py" ]; then
@@ -98,7 +80,6 @@ jobs:
             git submodule status
             ls -la mcp-servers/
           fi
-
           echo ""
           echo "All MCP servers:"
           ls -la mcp-servers/
@@ -127,106 +108,30 @@ jobs:
             cd mcp-servers/zen-mcp-server
             pip install -r requirements.txt
             echo "✅ Zen server dependencies installed"
-
-            # Verify Python can import the required modules
             echo ""
             echo "Verifying Python modules:"
             python -c "import asyncio; import json; import sys; print('✅ Core modules available')"
-
-            # Test environment variables
             echo ""
             echo "Testing environment:"
             python -c "import os; print(f'OPENROUTER_API_KEY: {\"SET\" if os.getenv(\"OPENROUTER_API_KEY\") else \"NOT SET\"}')"
-
-            # Apply debug patch for Grok alias investigation
             echo ""
             echo "Applying Grok alias debug patch..."
             export CUSTOM_MODELS_CONFIG_PATH="${{ github.workspace }}/config/custom_models_override.json"
             export GROK_ALIASES_ENABLED="true"
             export GROK_ALIASES="grok,grok-4,grok4,grok-3,grok3,grok-3-fast,grok3-fast,grokfast,grok-fast"
             export PYTHONPATH="${{ github.workspace }}/config:$PYTHONPATH"
-            
-            # Copy debug patches to Zen server directory for imports
             cp "${{ github.workspace }}/config/debug_alias_patch.py" ./
             cp "${{ github.workspace }}/config/zen_server_patch.py" ./
             cp "${{ github.workspace }}/config/direct_alias_injection.py" ./
-            
-            # Test debug patch application
             echo "Testing debug patch..."
-            python -c "
-import sys
-sys.path.insert(0, '.')
-import debug_alias_patch
-print('✅ Debug patch applied successfully')
-"
-
-            # Pre-deployment config verification
+            python -c "import sys; sys.path.insert(0, '.'); import debug_alias_patch; print('✅ Debug patch applied successfully')"
             echo ""
             echo "=== PRE-DEPLOYMENT CONFIG VERIFICATION ==="
             echo "Verifying custom models config loading..."
-            
-            python -c "
-import sys, os, json
-from pathlib import Path
-
-# Test environment variables
-config_path = os.getenv('CUSTOM_MODELS_CONFIG_PATH')
-print(f'CUSTOM_MODELS_CONFIG_PATH: {config_path}')
-print(f'GROK_ALIASES_ENABLED: {os.getenv(\"GROK_ALIASES_ENABLED\")}')
-
-# Test file existence and readability
-if config_path:
-    config_file = Path(config_path)
-    print(f'Config file exists: {config_file.exists()}')
-    
-    if config_file.exists():
-        print(f'Config file is readable: {config_file.is_file()}')
-        print(f'Config file size: {config_file.stat().st_size} bytes')
-        
-        try:
-            with open(config_file, 'r') as f:
-                config_data = json.load(f)
-                
-            print('✅ Config file JSON is valid')
-            
-            # Check for Grok models
-            if 'models' in config_data:
-                grok_models = [m for m in config_data['models'] if 'grok' in m.get('model_name', '').lower()]
-                print(f'Found {len(grok_models)} Grok models in config')
-                
-                for model in grok_models:
-                    model_name = model.get('model_name', 'unknown')
-                    aliases = model.get('aliases', [])
-                    print(f'  {model_name}: aliases = {aliases}')
-                    
-                if grok_models:
-                    print('✅ Grok models found in config')
-                else:
-                    print('❌ No Grok models found in config')
-            else:
-                print('❌ No models section found in config')
-                
-        except json.JSONDecodeError as e:
-            print(f'❌ Config file JSON is invalid: {e}')
-            sys.exit(1)
-        except Exception as e:
-            print(f'❌ Failed to read config file: {e}')
-            sys.exit(1)
-    else:
-        print('❌ Config file does not exist or is not accessible')
-        sys.exit(1)
-else:
-    print('❌ CUSTOM_MODELS_CONFIG_PATH not set')
-    sys.exit(1)
-
-print('✅ Pre-deployment config verification passed')
-"
-
-            # Test if server.py can start
+            python ${{ github.workspace }}/scripts/ci/verify-config.py
             echo ""
             echo "Testing server.py startup:"
             timeout 2 python server.py 2>&1 | head -20 || echo "Server test completed"
-
             cd ../..
           else
             echo "⚠️ Zen server requirements.txt not found - submodules may not be checked out"
@@ -247,21 +152,16 @@ print('✅ Pre-deployment config verification passed')
           GROK_ALIASES: "grok,grok-4,grok4,grok-3,grok3,grok-3-fast,grok3-fast,grokfast,grok-fast"
           PYTHONPATH: ${{ github.workspace }}/config:$PYTHONPATH
         run: |
-          # Export environment variables
           export GITHUB_SHA=${{ github.sha }}
           export DEPLOYMENT_VERSION="${{ github.sha }}"
           export DEPLOYMENT_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           export CUSTOM_MODELS_CONFIG_PATH="${{ github.workspace }}/config/custom_models_override.json"
           export GROK_ALIASES_ENABLED="true"
           export PYTHONPATH="${{ github.workspace }}/config:$PYTHONPATH"
-
-          # Ensure OPENROUTER_API_KEY is available - try both secrets
           echo "DEBUG: Raw OPENROUTER_API_KEY value: '${OPENROUTER_API_KEY}'"
           echo "DEBUG: OPENROUTER_API_KEY length: ${#OPENROUTER_API_KEY}"
           echo "DEBUG: Raw OPENROUTER_TOKEN value: '${OPENROUTER_TOKEN}'"
           echo "DEBUG: OPENROUTER_TOKEN length: ${#OPENROUTER_TOKEN}"
-
-          # Use OPENROUTER_TOKEN if OPENROUTER_API_KEY is empty
           if [ -z "${OPENROUTER_API_KEY}" ] && [ -n "${OPENROUTER_TOKEN}" ]; then
             echo "🔄 OPENROUTER_API_KEY is empty, using OPENROUTER_TOKEN instead"
             export OPENROUTER_API_KEY="${OPENROUTER_TOKEN}"
@@ -276,69 +176,42 @@ print('✅ Pre-deployment config verification passed')
             echo "Please ensure at least one is added to GitHub Secrets with a valid value"
             echo "❌ DEPLOYMENT WILL FAIL - Zen server requires API key"
           fi
-
-          # Debug: Check what servers are available
           echo "Checking available MCP servers:"
           ls -la ../../mcp-servers/
           echo ""
-
-          # Ensure debug patches are available for Zen server
           echo "Copying debug and alias injection patches to Zen server..."
           cp "${CUSTOM_MODELS_CONFIG_PATH%/*}/debug_alias_patch.py" ../../mcp-servers/zen-mcp-server/ || echo "Debug alias patch copy failed"
           cp "${CUSTOM_MODELS_CONFIG_PATH%/*}/zen_server_patch.py" ../../mcp-servers/zen-mcp-server/ || echo "Zen server patch copy failed"
           cp "${CUSTOM_MODELS_CONFIG_PATH%/*}/direct_alias_injection.py" ../../mcp-servers/zen-mcp-server/ || echo "Direct alias injection copy failed"
-          
-          # Create a patched server.py that applies debug patches
           echo "Creating patched server.py..."
           cd ../../mcp-servers/zen-mcp-server/
           cp server.py server_original.py
-          cat > server_patched.py << 'EOF'
-# Zen Server with Debug Patch Applied
-import sys
-import os
-
-# Apply debug patch first, before any other imports
-try:
-    import zen_server_patch
-    print("[SERVER] Debug patches initialized")
-except Exception as e:
-    print(f"[SERVER] Failed to apply debug patches: {e}")
-
-# Now import and run the original server
-with open('server_original.py', 'r') as f:
-    server_code = f.read()
-
-# Execute the original server code
-exec(server_code)
-EOF
-          
-          # Replace server.py with patched version for debugging
+          cp ${{ github.workspace }}/scripts/ci/server-patched.py ./server_patched.py
           if [ "$GROK_ALIASES_ENABLED" = "true" ]; then
             echo "Replacing server.py with patched version for debugging..."
             mv server.py server_backup.py
             mv server_patched.py server.py
             echo "✅ Patched server.py is now active"
           fi
-          
           cd ../../src/bridge/
-
-          # Start the custom MCP server
           echo "Starting Custom MCP Server with debug patch..."
           echo "Deployment version: ${GITHUB_SHA:0:8}"
           echo "OPENROUTER_API_KEY is ${OPENROUTER_API_KEY:+set}${OPENROUTER_API_KEY:-not set}"
           echo "CUSTOM_MODELS_CONFIG_PATH: ${CUSTOM_MODELS_CONFIG_PATH}"
           echo "GROK_ALIASES_ENABLED: ${GROK_ALIASES_ENABLED}"
-          nohup env OPENROUTER_API_KEY="${OPENROUTER_API_KEY}" CUSTOM_MODELS_CONFIG_PATH="${CUSTOM_MODELS_CONFIG_PATH}" GROK_ALIASES_ENABLED="${GROK_ALIASES_ENABLED}" GROK_ALIASES="${GROK_ALIASES}" PYTHONPATH="${PYTHONPATH}" node server.js > bridge.log 2>&1 &
+          nohup env \
+            OPENROUTER_API_KEY="${OPENROUTER_API_KEY}" \
+            CUSTOM_MODELS_CONFIG_PATH="${CUSTOM_MODELS_CONFIG_PATH}" \
+            GROK_ALIASES_ENABLED="${GROK_ALIASES_ENABLED}" \
+            GROK_ALIASES="${GROK_ALIASES}" \
+            PYTHONPATH="${PYTHONPATH}" \
+            node server.js > bridge.log 2>&1 &
           BRIDGE_PID=$!
           echo "Custom MCP Server started with PID: $BRIDGE_PID"
-
-          # Wait for server to start
           echo "Waiting for server to start..."
           for i in {1..30}; do
             if curl -s http://localhost:8081/health > /dev/null 2>&1; then
               echo "✅ Custom MCP Server started successfully"
-
-              # Display server info
               echo "Server info:"
               curl -s http://localhost:8081/health | jq
               break
@@ -346,16 +219,12 @@ EOF
             echo "Waiting... ($i/30)"
             sleep 2
           done
-
-          # Verify server is running
           if ! curl -s http://localhost:8081/health > /dev/null 2>&1; then
             echo "❌ Failed to start Custom MCP Server"
             echo "Server logs:"
             cat bridge.log
             exit 1
           fi
-
-          # Show server startup logs
           echo ""
           echo "Server startup logs (first 100 lines):"
           head -100 bridge.log
@@ -369,17 +238,20 @@ EOF
           echo "Checking discovered servers:"
           grep -i "examining server\|valid MCP server\|skipping" bridge.log || echo "No server discovery logs found"
 
-      - name: Set up Cloudflare Tunnel
-        uses: AnimMouse/setup-cloudflared@v1
+      - name: Install cloudflared
+        run: |
+          curl -L --output /tmp/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x /tmp/cloudflared
+          sudo mv /tmp/cloudflared /usr/local/bin/
 
       - name: Start Cloudflare Quick Tunnel
+        env:
+          TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
         run: |
           echo "Starting Cloudflare quick tunnel..."
-          nohup cloudflared tunnel --no-autoupdate --url http://localhost:8081 > logs/cloudflared.log 2>&1 &
+          nohup cloudflared tunnel --no-autoupdate run --token $TUNNEL_TOKEN > logs/cloudflared.log 2>&1 &
           TUNNEL_PID=$!
           echo "Cloudflare tunnel starting with PID: $TUNNEL_PID"
-
-          # Wait for tunnel URL
           echo "Waiting for tunnel URL..."
           for i in {1..30}; do
             if grep -q "https://.*\.trycloudflare\.com" logs/cloudflared.log; then
@@ -389,20 +261,14 @@ EOF
             echo "Waiting... ($i/30)"
             sleep 2
           done
-
-          # Extract the tunnel URL
           TUNNEL_URL=$(grep -o 'https://[^[:space:]]*\.trycloudflare\.com' logs/cloudflared.log | head -1)
-
           if [ -z "$TUNNEL_URL" ]; then
             echo "❌ Failed to get tunnel URL"
             cat logs/cloudflared.log
             exit 1
           fi
-
           echo "TUNNEL_URL=$TUNNEL_URL" >> $GITHUB_ENV
           echo "✅ Tunnel established at: $TUNNEL_URL"
-
-          # Save to file
           echo "$TUNNEL_URL" > tmp/tunnel_url.txt
 
       - name: Display endpoint info
@@ -428,8 +294,6 @@ EOF
           echo ""
           echo "Available tools: 21+ tools from main, calculator, and Zen servers"
           echo ""
-
-          # Save endpoints to file
           cat > tmp/endpoints.txt << EOF
           Custom MCP Server Endpoints:
           Base URL: $TUNNEL_URL
@@ -437,13 +301,9 @@ EOF
           MCP Protocol: $TUNNEL_URL/
           Tools: calculate_sum, echo
           EOF
-
-          # Test the public endpoint
           echo "Testing public endpoint..."
           sleep 5
-
           HEALTH_RESPONSE=$(curl -s --max-time 10 $TUNNEL_URL/health 2>&1 || true)
-
           if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
             echo "✅ Public endpoint is working!"
             echo "$HEALTH_RESPONSE" | jq
@@ -470,7 +330,6 @@ EOF
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create a simple JSON file with the current tunnel URL
           mkdir -p docs
           cat > docs/tunnel-status.json << EOF
           {
@@ -486,10 +345,7 @@ EOF
             "protocol": "MCP Streamable HTTP 2025-06-18"
           }
           EOF
-
           echo "Tunnel status saved"
-
-          # Commit and push to GitHub Pages
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add docs/tunnel-status.json
@@ -503,16 +359,11 @@ EOF
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           echo "Updating Cloudflare Worker KV with tunnel URL..."
-
-          # KV namespace ID for MCP_TUNNEL_URL
           KV_NAMESPACE_ID="7e1605c08a3c407c9f8a331f25b5c117"
-
-          # Update KV with tunnel URL
           KV_RESPONSE=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/storage/kv/namespaces/$KV_NAMESPACE_ID/values/url" \
             -H "Authorization: Bearer $CF_API_TOKEN" \
             -H "Content-Type: text/plain" \
             --data "$TUNNEL_URL")
-
           echo "✅ Worker KV updated with tunnel URL"
           echo "mcp.pavlovcik.com will now proxy to $TUNNEL_URL"
           echo ""
@@ -527,7 +378,6 @@ EOF
           echo "⚠️  This prevents breaking the service when tunnel registration fails"
 
       - name: Keep server running
-        # Always keep running, even if endpoint test fails (for debugging)
         run: |
           echo "Custom MCP Server running at: $TUNNEL_URL"
           echo "Available tools: 21+ tools from main, calculator, and Zen servers"
@@ -541,13 +391,8 @@ EOF
           echo "  - 1 hour of inactivity (no MCP requests)"
           echo "  - GitHub Actions timeout (6 hours max)"
           echo ""
-
-          # Monitor the server process
           BRIDGE_PID=$(pgrep -f "node server.js")
-
-          # Keep checking if the process is alive
           while kill -0 $BRIDGE_PID 2>/dev/null; do
-            # Check health endpoint
             HEALTH_RESPONSE=$(curl -s http://localhost:8081/health 2>/dev/null || echo "{}")
             if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
               UPTIME=$(echo "$HEALTH_RESPONSE" | jq -r '.uptime // 0')
@@ -556,10 +401,8 @@ EOF
               TIMEOUT_MINS=$((TIMEOUT_SECS / 60))
               echo "[$(date)] Server running - Uptime: ${UPTIME}s, Active sessions: ${SESSIONS}, Timeout in: ${TIMEOUT_MINS} minutes"
             fi
-
-            sleep 60  # Check every minute
+            sleep 60
           done
-
           echo "Server has shut down"
 
       - name: Deployment Failed - Cleanup
