@@ -129,6 +129,7 @@ class StdioToHttpWrapper extends EventEmitter {
       console.log(`  OPENROUTER_API_KEY: ${mergedEnv.OPENROUTER_API_KEY ? 'SET' : 'NOT SET'}`);
       console.log(`  OPENAI_API_KEY: ${mergedEnv.OPENAI_API_KEY ? 'SET' : 'NOT SET'}`);
       console.log(`  CUSTOM_MODELS_CONFIG_PATH: ${mergedEnv.CUSTOM_MODELS_CONFIG_PATH || 'not set'}`);
+      console.log(`  GROK_ALIASES_ENABLED: ${mergedEnv.GROK_ALIASES_ENABLED || 'not set'}`);
       console.log(`  PYTHONPATH: ${mergedEnv.PYTHONPATH || 'not set'}`);
       console.log(`  PYTHONUNBUFFERED: ${mergedEnv.PYTHONUNBUFFERED || 'not set'}`);
       console.log(`  LOG_LEVEL: ${mergedEnv.LOG_LEVEL || 'not set'}`);
