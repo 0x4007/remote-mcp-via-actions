@@ -133,7 +133,15 @@ jobs:
           export GITHUB_SHA=${{ github.sha }}
           export DEPLOYMENT_VERSION="${{ github.sha }}"
           export DEPLOYMENT_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          export OPENROUTER_API_KEY="${OPENROUTER_API_KEY}"
+          
+          # Ensure OPENROUTER_API_KEY is available
+          if [ -z "${OPENROUTER_API_KEY}" ]; then
+            echo "❌ ERROR: OPENROUTER_API_KEY is not set!"
+            echo "Please ensure OPENROUTER_API_KEY is added to GitHub Secrets"
+          else
+            echo "✅ OPENROUTER_API_KEY is set (length: ${#OPENROUTER_API_KEY})"
+            export OPENROUTER_API_KEY="${OPENROUTER_API_KEY}"
+          fi
 
           # Debug: Check what servers are available
           echo "Checking available MCP servers:"
