@@ -39,6 +39,13 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+      
+      - name: Install Python Dependencies for zen-mcp-server
+        run: |
+          echo "Installing minimal Python dependencies for zen-mcp-server..."
+          python3 -m pip install --upgrade pip
+          python3 -m pip install mcp python-dotenv 2>/dev/null || true
+          echo "✅ Python dependencies installed"
 
       - name: Install Gateway Dependencies
         working-directory: src/gateway

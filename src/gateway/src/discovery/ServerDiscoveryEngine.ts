@@ -184,22 +184,29 @@ export class ServerDiscoveryEngine {
   }
   
   private createPythonDescriptor(name: string, serverPath: string): MCPServerDescriptor {
-    let entrypoint = 'python'; // Default to system python
+    let entrypoint = 'python3'; // Default to python3
     let args = ['-u']; // Unbuffered output
+    const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
     
-    // Check for Python virtual environments in priority order
-    const venvPaths = [
-      path.join(serverPath, '.zen_venv', 'bin', 'python'),
-      path.join(serverPath, 'venv', 'bin', 'python'),
-      path.join(serverPath, '.venv', 'bin', 'python')
-    ];
-    
-    // Use virtual environment Python if available
-    for (const venvPath of venvPaths) {
-      if (fs.existsSync(venvPath)) {
-        entrypoint = venvPath;
-        console.log(`🐍 Using virtual environment Python: ${venvPath}`);
-        break;
+    // For zen-mcp-server in CI, use system Python directly
+    if (isCI && name === 'zen-mcp-server') {
+      console.log(`🐍 CI Mode: Using system Python for ${name}`);
+      entrypoint = 'python3';
+    } else {
+      // Check for Python virtual environments in priority order
+      const venvPaths = [
+        path.join(serverPath, '.zen_venv', 'bin', 'python'),
+        path.join(serverPath, 'venv', 'bin', 'python'),
+        path.join(serverPath, '.venv', 'bin', 'python')
+      ];
+      
+      // Use virtual environment Python if available
+      for (const venvPath of venvPaths) {
+        if (fs.existsSync(venvPath)) {
+          entrypoint = venvPath;
+          console.log(`🐍 Using virtual environment Python: ${venvPath}`);
+          break;
+        }
       }
     }
     
@@ -219,7 +226,7 @@ export class ServerDiscoveryEngine {
       args,
       environment: {
         ...process.env as Record<string, string>,
-        PYTHONPATH: '.',
+        PYTHONPATH: serverPath, // Use serverPath for PYTHONPATH
         PYTHONUNBUFFERED: '1',
         PYTHONDONTWRITEBYTECODE: '1',
         LOG_LEVEL: 'INFO'
