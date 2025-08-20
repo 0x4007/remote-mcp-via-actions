@@ -19,55 +19,55 @@ jobs:
         run: |
           echo "🔥 CANCELLING ALL EXISTING Deploy MCP WORKFLOWS"
           echo "=============================================="
-          
+
           # Get the current run ID to avoid canceling ourselves
           CURRENT_RUN_ID=${{ github.run_id }}
           echo "Current run ID: $CURRENT_RUN_ID"
-          
+
           # Get ALL running Deploy MCP workflows across the entire repository
           echo "Finding ALL Deploy MCP workflows in any state..."
-          
+
           ALL_DEPLOY_RUNS=$(gh api repos/${{ github.repository }}/actions/runs \
             --paginate \
             --jq '.workflow_runs[] | select(.name == "Deploy MCP" and (.status == "in_progress" or .status == "queued" or .status == "requested" or .status == "waiting")) | select(.id != '$CURRENT_RUN_ID') | .id')
-          
+
           echo "Found runs to cancel: $(echo "$ALL_DEPLOY_RUNS" | wc -l | tr -d ' ')"
-          
+
           if [ -z "$ALL_DEPLOY_RUNS" ]; then
             echo "✅ No other Deploy MCP runs found."
           else
             echo "🎯 Target runs for cancellation:"
             echo "$ALL_DEPLOY_RUNS"
             echo ""
-            
+
             # Force cancel ALL Deploy MCP runs
             echo "🔥 FORCE CANCELLING ALL Deploy MCP RUNS..."
             echo "$ALL_DEPLOY_RUNS" | while IFS= read -r RUN_ID; do
               if [ ! -z "$RUN_ID" ] && [ "$RUN_ID" != "$CURRENT_RUN_ID" ]; then
                 echo "🔥 Cancelling Deploy MCP run: $RUN_ID"
-                
+
                 # Try multiple approaches to ensure cancellation
                 timeout 15 gh run cancel "$RUN_ID" --repo ${{ github.repository }} 2>/dev/null || \
                 timeout 15 gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/cancel -X POST 2>/dev/null || \
                 echo "⚠️ Failed to cancel run $RUN_ID"
-                
+
                 # Don't wait - be aggressive
                 sleep 1
               fi
             done
-            
+
             echo ""
             echo "🔥 All Deploy MCP cancellation requests sent!"
             echo "⏳ Waiting 15 seconds for cancellations to process..."
             sleep 15
           fi
-          
+
           # Final status check
           echo ""
           echo "📊 Final Deploy MCP workflow status:"
           gh api repos/${{ github.repository }}/actions/runs \
             --jq '.workflow_runs[] | select(.name == "Deploy MCP") | "\(.id): \(.status) - \(.created_at)"' | head -10 || echo "Failed to get status"
-          
+
           echo ""
           echo "✅ Cancellation phase complete. This deployment will now proceed as the ONLY active Deploy MCP workflow."
 
@@ -82,7 +82,7 @@ jobs:
           echo "Initializing git submodules..."
           git submodule sync --recursive
           git submodule update --init --recursive --force
-          
+
           echo ""
           echo "Verifying Zen server submodule:"
           if [ -f "mcp-servers/zen-mcp-server/server.py" ]; then
@@ -98,7 +98,7 @@ jobs:
             git submodule status
             ls -la mcp-servers/
           fi
-          
+
           echo ""
           echo "All MCP servers:"
           ls -la mcp-servers/
@@ -127,22 +127,22 @@ jobs:
             cd mcp-servers/zen-mcp-server
             pip install -r requirements.txt
             echo "✅ Zen server dependencies installed"
-            
+
             # Verify Python can import the required modules
             echo ""
             echo "Verifying Python modules:"
             python -c "import asyncio; import json; import sys; print('✅ Core modules available')"
-            
+
             # Test environment variables
             echo ""
             echo "Testing environment:"
             python -c "import os; print(f'OPENROUTER_API_KEY: {\"SET\" if os.getenv(\"OPENROUTER_API_KEY\") else \"NOT SET\"}')"
-            
+
             # Test if server.py can start
             echo ""
             echo "Testing server.py startup:"
             timeout 2 python server.py 2>&1 | head -20 || echo "Server test completed"
-            
+
             cd ../..
           else
             echo "⚠️ Zen server requirements.txt not found - submodules may not be checked out"
@@ -163,13 +163,13 @@ jobs:
           export GITHUB_SHA=${{ github.sha }}
           export DEPLOYMENT_VERSION="${{ github.sha }}"
           export DEPLOYMENT_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          
+
           # Ensure OPENROUTER_API_KEY is available - try both secrets
           echo "DEBUG: Raw OPENROUTER_API_KEY value: '${OPENROUTER_API_KEY}'"
           echo "DEBUG: OPENROUTER_API_KEY length: ${#OPENROUTER_API_KEY}"
           echo "DEBUG: Raw OPENROUTER_TOKEN value: '${OPENROUTER_TOKEN}'"
           echo "DEBUG: OPENROUTER_TOKEN length: ${#OPENROUTER_TOKEN}"
-          
+
           # Use OPENROUTER_TOKEN if OPENROUTER_API_KEY is empty
           if [ -z "${OPENROUTER_API_KEY}" ] && [ -n "${OPENROUTER_TOKEN}" ]; then
             echo "🔄 OPENROUTER_API_KEY is empty, using OPENROUTER_TOKEN instead"
@@ -190,7 +190,7 @@ jobs:
           echo "Checking available MCP servers:"
           ls -la ../../mcp-servers/
           echo ""
-          
+
           # Start the custom MCP server
           echo "Starting Custom MCP Server..."
           echo "Deployment version: ${GITHUB_SHA:0:8}"
@@ -221,7 +221,7 @@ jobs:
             cat bridge.log
             exit 1
           fi
-          
+
           # Show server startup logs
           echo ""
           echo "Server startup logs (first 100 lines):"
