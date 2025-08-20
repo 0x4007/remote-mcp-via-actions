@@ -13,16 +13,9 @@ export class ServerDiscoveryEngine {
     
     const servers: MCPServerDescriptor[] = [];
     const entries = fs.readdirSync(this.baseDir, { withFileTypes: true });
-    const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
     
     for (const entry of entries) {
       if (entry.isDirectory() && !entry.name.startsWith('.')) {
-        // Skip zen-mcp-server in CI environments temporarily
-        if (isCI && entry.name === 'zen-mcp-server') {
-          console.log(`⚠️  Skipping ${entry.name} in CI environment (complex setup requirements)`);
-          continue;
-        }
-        
         const serverPath = path.join(this.baseDir, entry.name);
         const descriptor = await this.detectServer(entry.name, serverPath);
         
@@ -75,6 +68,7 @@ export class ServerDiscoveryEngine {
     // Universal Priority: Binary > Python > Node.js
     // But treat Python wrappers as Python servers
     let descriptor: MCPServerDescriptor | null = null;
+    const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
     
     if (hasBinary && !isPythonWrapper) {
       console.log(`🔧 Using binary runtime for ${name}`);
@@ -84,8 +78,11 @@ export class ServerDiscoveryEngine {
       console.log(`🐍 Using Python runtime for ${name}`);
       descriptor = this.createPythonDescriptor(name, serverPath);
       
-      // If there's a Python wrapper and virtual environment exists, use the wrapper
-      if (isPythonWrapper) {
+      // Special handling for zen-mcp-server in CI - always use Python directly
+      if (isCI && name === 'zen-mcp-server') {
+        console.log(`  - CI mode: Using direct Python for zen-mcp-server`);
+        // Keep it as Python server, don't switch to wrapper
+      } else if (isPythonWrapper) {
         const venvPaths = [
           path.join(serverPath, '.zen_venv'),
           path.join(serverPath, 'venv'),
