@@ -14,6 +14,19 @@
       "description": "Simple calculator MCP server for testing",
       "timeout": 10000,
       "maxInstances": 2
+    },
+    "zen-mcp-server": {
+      "enabled": true,
+      "command": "python",
+      "args": ["server.py"],
+      "env": {
+        "PYTHONPATH": ".",
+        "LOG_LEVEL": "INFO"
+      },
+      "timeout": 60000,
+      "maxInstances": 2,
+      "restartOnCrash": true,
+      "description": "AI-powered MCP server with multiple model providers for advanced coding assistance"
     }
   },
   "defaults": {

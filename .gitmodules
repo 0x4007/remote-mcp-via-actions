@@ -4,3 +4,6 @@
 [submodule "tests/mcp-inspector"]
 	path = tests/mcp-inspector
 	url = https://github.com/modelcontextprotocol/inspector.git
+[submodule "mcp-servers/zen-mcp-server"]
+	path = mcp-servers/zen-mcp-server
+	url = https://github.com/BeehiveInnovations/zen-mcp-server.git

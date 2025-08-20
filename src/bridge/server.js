@@ -155,12 +155,19 @@ class MCPServer {
   }
 
   async handleListTools() {
-    return { tools: this.tools };
+    // Get tools from all submodules
+    const submoduleTools = await submoduleManager.getAllTools();
+    
+    // Combine local tools with submodule tools
+    const allTools = [...this.tools, ...submoduleTools];
+    
+    return { tools: allTools };
   }
 
   async handleCallTool(params) {
     const { name, arguments: args = {} } = params;
 
+    // Check if it's a local tool first
     switch (name) {
       case 'calculate_sum':
         if (!args.numbers || !Array.isArray(args.numbers)) {
@@ -186,6 +193,11 @@ class MCPServer {
         };
 
       default:
+        // Try to call tool from a submodule
+        const result = await submoduleManager.callTool(name, args);
+        if (result) {
+          return result;
+        }
         throw new Error(`Unknown tool: ${name}`);
     }
   }
@@ -311,7 +323,7 @@ const handleMCPGet = async (req, res) => {
     console.log(`Created new streaming session: ${activeSessionId}`);
   }
 
-  // Set up HTTP streaming with chunked transfer encoding
+  // Set up HTTP streaming with chunked transfer encoding (HTTP Streamable, NOT SSE!)
   res.writeHead(200, {
     'Content-Type': 'application/json',
     'Cache-Control': 'no-cache',

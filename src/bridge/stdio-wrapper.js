@@ -20,7 +20,39 @@ class StdioToHttpWrapper extends EventEmitter {
     // Spawn initial process pool
     const initialInstances = Math.min(1, this.config.maxInstances || 1);
     for (let i = 0; i < initialInstances; i++) {
-      await this.spawnProcess();
+      const processId = await this.spawnProcess();
+      
+      // Initialize the MCP protocol for this process
+      try {
+        const initRequest = {
+          jsonrpc: '2.0',
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {
+              tools: {}
+            },
+            clientInfo: {
+              name: 'remote-mcp-bridge',
+              version: '1.0.0'
+            }
+          },
+          id: `init-${processId}`
+        };
+        
+        const initResponse = await this.sendRequestToProcess(processId, initRequest);
+        
+        // Store initialization state for this process
+        const processInfo = this.processes.get(processId);
+        if (processInfo && initResponse && initResponse.result) {
+          processInfo.mcpInitialized = true;
+          console.log(`Initialized MCP protocol for ${this.serverName} process ${processId}`);
+        } else {
+          console.error(`Failed to initialize MCP protocol for ${this.serverName}: Invalid response`);
+        }
+      } catch (error) {
+        console.error(`Failed to initialize MCP protocol for ${this.serverName}:`, error);
+      }
     }
     
     this.isInitialized = true;
@@ -130,9 +162,59 @@ class StdioToHttpWrapper extends EventEmitter {
     });
   }
 
+  async sendRequestToProcess(processId, request) {
+    const processInfo = this.processes.get(processId);
+    if (!processInfo) {
+      throw new Error(`Process not found: ${processId}`);
+    }
+
+    // Create a promise that will resolve when we get the response
+    const responsePromise = new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.activeRequests.delete(request.id);
+        reject(new Error(`Request timeout for ${request.method}`));
+      }, this.config.timeout || 30000);
+
+      this.activeRequests.set(request.id, {
+        resolve: (response) => {
+          clearTimeout(timeout);
+          resolve(response);
+        },
+        reject: (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        },
+        processId
+      });
+    });
+
+    // Send request to stdio process
+    try {
+      const requestStr = JSON.stringify(request) + '\n';
+      processInfo.process.stdin.write(requestStr);
+    } catch (error) {
+      this.activeRequests.delete(request.id);
+      throw error;
+    }
+
+    return responsePromise;
+  }
+
   async sendRequest(request) {
-    // Get an available process
-    const processId = await this.getAvailableProcess();
+    // For tools/list, we need to use an initialized process
+    let processId;
+    if (request.method === 'tools/list' || request.method === 'tools/call') {
+      // Find an initialized process
+      processId = await this.getInitializedProcess();
+      if (!processId) {
+        // No initialized process, initialize one
+        await this.initialize();
+        processId = await this.getInitializedProcess();
+      }
+    } else {
+      processId = await this.getAvailableProcess();
+    }
+    
     const processInfo = this.processes.get(processId);
     
     if (!processInfo) {
@@ -172,6 +254,18 @@ class StdioToHttpWrapper extends EventEmitter {
     }
 
     return responsePromise;
+  }
+
+  async getInitializedProcess() {
+    // Find a process that has been MCP initialized
+    for (const [processId, processInfo] of this.processes) {
+      if (processInfo.mcpInitialized && !processInfo.busy && processInfo.process && !processInfo.process.killed) {
+        return processId;
+      }
+    }
+    
+    // No initialized process available
+    return null;
   }
 
   async getAvailableProcess() {

@@ -1,3 +1,12 @@
+# IMPORTANT: MCP Protocol Implementation Notes
+
+## HTTP Streamable vs SSE
+**CRITICAL**: This MCP server uses HTTP Streamable (chunked JSON) protocol, NOT Server-Sent Events (SSE)!
+- Content-Type MUST be `application/json` with `Transfer-Encoding: chunked`
+- NOT `text/event-stream` (that's SSE)
+- Messages are sent as JSON objects separated by newlines
+- The MCP Inspector expects HTTP Streamable format
+
 # Connect Claude Code to tools via MCP
 
 > Learn how to connect Claude Code to your tools with the Model Context Protocol.

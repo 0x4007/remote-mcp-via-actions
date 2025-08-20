@@ -59,12 +59,17 @@ class SubmoduleManager {
       if (entry.isDirectory() && !entry.name.startsWith('.')) {
         const serverPath = path.join(this.mcpServersDir, entry.name);
         
-        // Check if it's a valid MCP server (has package.json or index.js)
+        // Check if it's a valid MCP server (has package.json, index.js, pyproject.toml, or server.py)
         const hasPackageJson = fs.existsSync(path.join(serverPath, 'package.json'));
         const hasIndexJs = fs.existsSync(path.join(serverPath, 'index.js'));
+        const hasPyProjectToml = fs.existsSync(path.join(serverPath, 'pyproject.toml'));
+        const hasServerPy = fs.existsSync(path.join(serverPath, 'server.py'));
         const hasMainFile = this.findMainFile(serverPath);
         
-        if (hasPackageJson || hasIndexJs || hasMainFile) {
+        // Also check if server is explicitly configured
+        const isConfigured = this.config.servers[entry.name] && this.config.servers[entry.name].enabled !== false;
+        
+        if (hasPackageJson || hasIndexJs || hasPyProjectToml || hasServerPy || hasMainFile || isConfigured) {
           await this.initializeServer(entry.name);
         } else {
           console.log(`Skipping ${entry.name}: not a valid MCP server directory`);
@@ -134,6 +139,30 @@ class SubmoduleManager {
   autoDetectCommand(serverName) {
     const serverPath = path.join(this.mcpServersDir, serverName);
     const packageJsonPath = path.join(serverPath, 'package.json');
+    const pyprojectTomlPath = path.join(serverPath, 'pyproject.toml');
+    
+    // Check for Python projects with pyproject.toml
+    if (fs.existsSync(pyprojectTomlPath)) {
+      // Check for common Python entry points
+      if (fs.existsSync(path.join(serverPath, 'server.py'))) {
+        return {
+          command: 'python',
+          args: ['server.py']
+        };
+      }
+      if (fs.existsSync(path.join(serverPath, 'main.py'))) {
+        return {
+          command: 'python',
+          args: ['main.py']
+        };
+      }
+      if (fs.existsSync(path.join(serverPath, '__main__.py'))) {
+        return {
+          command: 'python',
+          args: ['-m', serverName.replace(/-/g, '_')]
+        };
+      }
+    }
     
     // Check package.json for scripts or bin
     if (fs.existsSync(packageJsonPath)) {
@@ -225,6 +254,103 @@ class SubmoduleManager {
     }
     
     await this.initializeServer(serverName);
+  }
+
+  async getAllTools() {
+    const allTools = [];
+    
+    for (const [serverName, wrapper] of this.wrappers) {
+      try {
+        // Make sure the server is initialized
+        if (!wrapper.isInitialized) {
+          await wrapper.initialize();
+        }
+        
+        // Get tools from this server
+        const response = await wrapper.sendRequest({
+          jsonrpc: '2.0',
+          method: 'tools/list',
+          params: {},
+          id: `list-tools-${Date.now()}`
+        });
+        
+        if (response && response.result && response.result.tools) {
+          // Add server name prefix to avoid conflicts
+          const serverTools = response.result.tools.map(tool => ({
+            ...tool,
+            name: `${serverName}__${tool.name}`,
+            description: `[${serverName}] ${tool.description || ''}`
+          }));
+          allTools.push(...serverTools);
+        } else if (response && response.error) {
+          console.error(`Error response from ${serverName}:`, response.error);
+        }
+      } catch (error) {
+        console.error(`Failed to get tools from ${serverName}:`, error.message);
+        // For debugging, let's see what the actual error response is
+        console.error(`Error details:`, error);
+      }
+    }
+    
+    return allTools;
+  }
+
+  async callTool(toolName, args) {
+    // Check if the tool name has a server prefix
+    const parts = toolName.split('__');
+    if (parts.length < 2) {
+      // No prefix, try all servers
+      for (const [serverName, wrapper] of this.wrappers) {
+        try {
+          const response = await wrapper.sendRequest({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: toolName,
+              arguments: args
+            },
+            id: `call-tool-${Date.now()}`
+          });
+          
+          if (response && response.result) {
+            return response.result;
+          }
+        } catch (error) {
+          // Tool might not exist in this server, continue to next
+          continue;
+        }
+      }
+      return null;
+    }
+    
+    // Has prefix, route to specific server
+    const serverName = parts[0];
+    const actualToolName = parts.slice(1).join('__');
+    
+    const wrapper = this.wrappers.get(serverName);
+    if (!wrapper) {
+      throw new Error(`Server not found: ${serverName}`);
+    }
+    
+    try {
+      const response = await wrapper.sendRequest({
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: {
+          name: actualToolName,
+          arguments: args
+        },
+        id: `call-tool-${Date.now()}`
+      });
+      
+      if (response && response.result) {
+        return response.result;
+      }
+    } catch (error) {
+      throw new Error(`Failed to call tool ${actualToolName} on server ${serverName}: ${error.message}`);
+    }
+    
+    return null;
   }
 
   async shutdown() {
