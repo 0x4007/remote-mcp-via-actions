@@ -16,7 +16,7 @@
       "maxInstances": 2
     },
     "zen-mcp-server": {
-      "enabled": false,
+      "enabled": true,
       "command": "python",
       "args": ["server.py"],
       "env": {

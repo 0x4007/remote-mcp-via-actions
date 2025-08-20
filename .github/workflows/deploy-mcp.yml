@@ -85,11 +85,14 @@ jobs:
 
       - name: Start Custom MCP Server
         working-directory: src/bridge
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           # Export environment variables
           export GITHUB_SHA=${{ github.sha }}
           export DEPLOYMENT_VERSION="${{ github.sha }}"
           export DEPLOYMENT_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          export OPENROUTER_API_KEY="${OPENROUTER_API_KEY}"
 
           # Start the custom MCP server
           echo "Starting Custom MCP Server..."

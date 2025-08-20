@@ -88,7 +88,7 @@ For servers with special requirements, edit `mcp-servers/config.json`:
 
 ## Available Tools
 
-The current setup exposes **5 tools** from two servers (Zen server disabled by default):
+The current setup exposes **21 tools** from three servers:
 
 ### Main Server (2 tools)
 - `calculate_sum` - Calculate the sum of numbers
@@ -99,7 +99,7 @@ The current setup exposes **5 tools** from two servers (Zen server disabled by d
 - `example-calculator__multiply` - Multiply two numbers
 - `example-calculator__divide` - Divide two numbers
 
-### Zen Server (16 tools - DISABLED by default)
+### Zen Server (16 tools)
 - `zen-mcp-server__chat` - General chat and collaborative thinking
 - `zen-mcp-server__thinkdeep` - Deep thinking and analysis
 - `zen-mcp-server__planner` - Planning and task breakdown
@@ -117,10 +117,7 @@ The current setup exposes **5 tools** from two servers (Zen server disabled by d
 - `zen-mcp-server__listmodels` - List available AI models
 - `zen-mcp-server__version` - Version information
 
-**Note**: The Zen server requires API keys (OPENAI_API_KEY, OPENROUTER_API_KEY, etc.) to function. It's disabled by default in production. To enable locally:
-1. Set your API keys in the environment
-2. Edit `mcp-servers/config.json` and set `"enabled": true` for zen-mcp-server
-3. Restart the bridge server
+**Note**: The Zen server uses OPENROUTER_API_KEY which is configured in GitHub secrets for production deployment.
 
 ## Testing
 
