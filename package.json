@@ -6,9 +6,16 @@
   "scripts": {
     "dev": "bun run src/bridge/server.js",
     "start": "node src/bridge/server.js",
-    "test": "bun test",
+    "test": "bun test tests/",
+    "test:mcp": "bash tests/test-mcp.sh",
+    "test:proxy": "bash tests/test-proxy-mcp.sh",
     "deploy": "cd src/cloudflare && npx wrangler deploy",
-    "health": "curl http://localhost:8081/health"
+    "deploy:mcp": "bash scripts/dispatch-mcp-action.sh",
+    "health": "curl http://localhost:8081/health",
+    "inspector": "cd tests/mcp-inspector && npm run dev",
+    "inspector:build": "cd tests/mcp-inspector && npm run build",
+    "inspector:start": "cd tests/mcp-inspector && npm run start",
+    "dev:all": "npm run dev & npm run inspector"
   },
   "keywords": [
     "mcp",

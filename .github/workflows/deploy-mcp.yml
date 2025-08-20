@@ -227,7 +227,14 @@ jobs:
           echo "Available tools: calculate_sum, echo"
           echo "Protocol: MCP Streamable HTTP 2025-06-18"
           echo ""
-          echo "Server will keep running until the GitHub Actions timeout..."
+          echo "⏱️  Server has a 15-minute inactivity timeout"
+          echo "The server will automatically shut down if no MCP requests are received for 15 minutes."
+          echo "Health check requests do not reset the timeout timer."
+          echo ""
+          echo "Server will keep running until either:"
+          echo "  - 15 minutes of inactivity (no MCP requests)"
+          echo "  - GitHub Actions timeout (6 hours max)"
+          echo ""
 
           # Monitor the server process
           BRIDGE_PID=$(pgrep -f "node server.js")
@@ -239,7 +246,9 @@ jobs:
             if echo "$HEALTH_RESPONSE" | jq -e . > /dev/null 2>&1; then
               UPTIME=$(echo "$HEALTH_RESPONSE" | jq -r '.uptime // 0')
               SESSIONS=$(echo "$HEALTH_RESPONSE" | jq -r '.activeSessions // 0')
-              echo "[$(date)] Server running - Uptime: ${UPTIME}s, Active sessions: ${SESSIONS}"
+              TIMEOUT_SECS=$(echo "$HEALTH_RESPONSE" | jq -r '.timeUntilTimeout // 900')
+              TIMEOUT_MINS=$((TIMEOUT_SECS / 60))
+              echo "[$(date)] Server running - Uptime: ${UPTIME}s, Active sessions: ${SESSIONS}, Timeout in: ${TIMEOUT_MINS} minutes"
             fi
 
             sleep 60  # Check every minute

@@ -5,6 +5,11 @@ const SubmoduleManager = require('./submodule-manager');
 const app = express();
 const port = process.env.PORT || 8081;
 
+// Timeout configuration - 15 minutes of inactivity
+const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+let lastActivityTime = Date.now();
+let inactivityTimer = null;
+
 // MCP Protocol Constants
 const MCP_PROTOCOL_VERSION = '2025-06-18';
 const SERVER_NAME = 'remote-mcp-demo';
@@ -33,9 +38,39 @@ app.use((req, res, next) => {
 const recentRequests = [];
 const MAX_REQUESTS = 10;
 
+// Function to update activity time and reset timer
+const updateActivityTime = () => {
+  lastActivityTime = Date.now();
+  
+  // Clear existing timer
+  if (inactivityTimer) {
+    clearTimeout(inactivityTimer);
+  }
+  
+  // Set new timer for 15 minutes
+  inactivityTimer = setTimeout(() => {
+    console.log(`No client activity for ${INACTIVITY_TIMEOUT_MS / 1000} seconds. Shutting down...`);
+    console.log('Last activity was at:', new Date(lastActivityTime).toISOString());
+    
+    // Graceful shutdown
+    submoduleManager.shutdown().then(() => {
+      console.log('Submodule manager shut down successfully');
+      process.exit(0);
+    }).catch((error) => {
+      console.error('Error during shutdown:', error);
+      process.exit(1);
+    });
+  }, INACTIVITY_TIMEOUT_MS);
+};
+
 // Health check
 app.get('/health', async (req, res) => {
+  // Don't count health checks as activity to avoid keeping server alive indefinitely
+  // Only real MCP requests should reset the timeout
   const submoduleServers = submoduleManager.getServerList();
+  const timeSinceLastActivity = Date.now() - lastActivityTime;
+  const timeUntilTimeout = Math.max(0, INACTIVITY_TIMEOUT_MS - timeSinceLastActivity);
+  
   res.json({
     status: 'healthy',
     protocol: MCP_PROTOCOL_VERSION,
@@ -44,6 +79,9 @@ app.get('/health', async (req, res) => {
     commit: (process.env.GITHUB_SHA || 'unknown').substring(0, 8),
     uptime: process.uptime(),
     activeSessions: sessions.size,
+    lastActivity: new Date(lastActivityTime).toISOString(),
+    timeUntilTimeout: Math.round(timeUntilTimeout / 1000), // seconds
+    inactivityTimeoutMinutes: INACTIVITY_TIMEOUT_MS / 60000,
     submoduleServers: submoduleServers.length,
     submodules: submoduleServers.map(s => ({ name: s.name, processes: s.status.processes.length }))
   });
@@ -157,6 +195,11 @@ const mcpServer = new MCPServer();
 
 // Origin validation for DNS rebinding protection
 const validateOrigin = (req, res, next) => {
+  // Update activity time for all non-health-check requests
+  if (req.path !== '/health') {
+    updateActivityTime();
+  }
+  
   const timestamp = new Date().toISOString();
   const logEntry = {
     timestamp,
@@ -618,6 +661,10 @@ app.listen(port, async () => {
   console.log(`Protocol version: ${MCP_PROTOCOL_VERSION}`);
   console.log(`Server name: ${SERVER_NAME} v${SERVER_VERSION}`);
   console.log(`Available tools: ${mcpServer.tools.map(t => t.name).join(', ')}`);
+  console.log(`Inactivity timeout: ${INACTIVITY_TIMEOUT_MS / 60000} minutes`);
+  
+  // Start the inactivity timer
+  updateActivityTime();
   
   // Initialize submodule manager
   try {
@@ -643,12 +690,18 @@ setInterval(() => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully...');
+  if (inactivityTimer) {
+    clearTimeout(inactivityTimer);
+  }
   await submoduleManager.shutdown();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully...');
+  if (inactivityTimer) {
+    clearTimeout(inactivityTimer);
+  }
   await submoduleManager.shutdown();
   process.exit(0);
 });

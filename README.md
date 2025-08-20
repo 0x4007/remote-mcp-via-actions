@@ -6,7 +6,7 @@ Proof of concept demonstrating HTTP-based MCP (Model Context Protocol) server ac
 
 This POC provides **MCP Streamable HTTP** compliant servers that proxy requests to `test.kukapay.com/api/mcp`:
 
-> **MCP Specification**: This implementation follows the [Model Context Protocol Streamable HTTP transport (2025-03-26)](docs/mcp-spec/docs/specification/2025-03-26/basic/transports.mdx). See the [official MCP documentation](docs/mcp-spec/docs/) for complete protocol details.
+> **MCP Specification**: This implementation follows the [Model Context Protocol Streamable HTTP transport (2025-03-26)](docs/mcp-specification/docs/specification/2025-03-26/basic/transports.mdx). See the [official MCP documentation](docs/mcp-specification/docs/) for complete protocol details.
 
 ### ✅ **Streamable HTTP Transport Features**
 - **Single MCP endpoint** supporting GET, POST, and DELETE methods
@@ -41,7 +41,7 @@ claude mcp add --transport http local-mcp http://localhost:8081/mcp
 
 ### Troubleshooting Claude Code Connection
 
-If `claude mcp list` shows "Failed to connect", see [claude-mcp-list.md](claude-mcp-list.md) for detailed troubleshooting guide. Key requirements:
+If `claude mcp list` shows "Failed to connect", see [docs/claude-mcp-list.md](docs/claude-mcp-list.md) for detailed troubleshooting guide. Key requirements:
 - Server must accept and echo back protocol version `2024-11-05`
 - Must handle `notifications/initialized` method
 - Must return proper JSON-RPC 2.0 responses
@@ -68,6 +68,30 @@ The test suite validates:
 - ✅ **MCP protocol compliance** (initialize, tools, resources)
 - ✅ **Concurrent request handling**
 - ✅ **Session management** support
+
+### MCP Inspector UI
+
+Use the MCP Inspector for interactive testing and debugging:
+
+```bash
+# Start MCP Inspector UI
+npm run inspector
+
+# Start both server and inspector together
+npm run dev:all
+
+# Build inspector for production
+npm run inspector:build
+
+# Start built inspector
+npm run inspector:start
+```
+
+The MCP Inspector provides:
+- Interactive connection to MCP servers
+- Visual tool exploration and testing
+- Real-time message inspection
+- Session management UI
 
 ### Manual Testing
 
@@ -98,7 +122,7 @@ curl -X POST https://mcp.pavlovcik.com/mcp \
 - **[docs/API.md](docs/API.md)** - Detailed API documentation and examples
 - **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Deployment guide for local and Cloudflare environments
 - **[docs/TESTING.md](docs/TESTING.md)** - Comprehensive testing guide and Streamable HTTP compliance validation
-- **[docs/mcp-spec/](docs/mcp-spec/)** - Official MCP specification (submodule)
+- **[docs/mcp-specification/](docs/mcp-specification/)** - Official MCP specification (submodule)
 
 ## Architecture
 
