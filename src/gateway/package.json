@@ -10,7 +10,13 @@
     "clean": "rm -rf dist",
     "test": "jest",
     "test:coverage": "jest --coverage",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "test:task1": "jest tests/gateway-initialization.test.js tests/inactivity-timeout.test.js tests/server-discovery.test.js tests/process-pool.test.js",
+    "test:task1:watch": "jest --watch tests/gateway-initialization.test.js tests/inactivity-timeout.test.js tests/server-discovery.test.js tests/process-pool.test.js",
+    "test:task2": "jest tests/mcp-inspector-compatibility.test.js tests/inspector-real-curl.test.js tests/ui-compatibility.test.js",
+    "test:task2:watch": "jest --watch tests/mcp-inspector-compatibility.test.js tests/inspector-real-curl.test.js tests/ui-compatibility.test.js",
+    "test:task3": "jest tests/task3-deployment-tests.test.js",
+    "test:task3:watch": "jest --watch tests/task3-deployment-tests.test.js"
   },
   "dependencies": {
     "axios": "^1.11.0",
@@ -25,10 +31,16 @@
     "@types/supertest": "^2.0.15",
     "@types/uuid": "^9.0.0",
     "jest": "^29.7.0",
+    "js-yaml": "^4.1.0",
     "supertest": "^6.3.3",
     "ts-jest": "^29.1.1",
     "typescript": "^5.0.0"
   },
-  "keywords": ["mcp", "model-context-protocol", "gateway", "auto-discovery"],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "gateway",
+    "auto-discovery"
+  ],
   "license": "MIT"
 }

@@ -35,7 +35,20 @@ export class ServerDiscoveryEngine {
     // Detect setup script (Universal Setup Script Convention)
     const setupScript = this.detectSetupScript(serverPath);
     
-    // Priority: Binary > Python > Node.js (as recommended by expert analysis)
+    // Special case: zen-mcp-server should always be detected as Python
+    // because its binary wrapper depends on a virtual environment that may not exist
+    if (name === 'zen-mcp-server' && 
+        (fs.existsSync(path.join(serverPath, 'server.py')) || 
+         fs.existsSync(path.join(serverPath, 'pyproject.toml')))) {
+      const descriptor = this.createPythonDescriptor(name, serverPath);
+      if (descriptor && setupScript) {
+        descriptor.setupScript = setupScript;
+        descriptor.needsSetup = true;
+      }
+      return descriptor;
+    }
+    
+    // Standard Priority: Binary > Python > Node.js (as recommended by expert analysis)
     let descriptor: MCPServerDescriptor | null = null;
     
     // Check for binary executable
