@@ -97,6 +97,8 @@ jobs:
           npm install
 
       - name: Install Zen server dependencies
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           if [ -f "mcp-servers/zen-mcp-server/requirements.txt" ]; then
             echo "Installing Zen server Python dependencies..."
@@ -109,10 +111,15 @@ jobs:
             echo "Verifying Python modules:"
             python -c "import asyncio; import json; import sys; print('✅ Core modules available')"
             
-            # Test if server.py can be executed
+            # Test environment variables
             echo ""
-            echo "Testing server.py execution:"
-            python -c "import sys; sys.path.insert(0, '.'); exec(open('server.py').read(), {'__name__': '__test__'})" 2>&1 | head -5 || echo "Server.py test completed"
+            echo "Testing environment:"
+            python -c "import os; print(f'OPENROUTER_API_KEY: {\"SET\" if os.getenv(\"OPENROUTER_API_KEY\") else \"NOT SET\"}')"
+            
+            # Test if server.py can start
+            echo ""
+            echo "Testing server.py startup:"
+            timeout 2 python server.py 2>&1 | head -20 || echo "Server test completed"
             
             cd ../..
           else
