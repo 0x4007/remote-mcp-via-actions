@@ -5,8 +5,8 @@ const SubmoduleManager = require('./submodule-manager');
 const app = express();
 const port = process.env.PORT || 8081;
 
-// Timeout configuration - 15 minutes of inactivity
-const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+// Timeout configuration - 1 hour of inactivity
+const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour
 let lastActivityTime = Date.now();
 let inactivityTimer = null;
 
