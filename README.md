@@ -262,7 +262,7 @@ curl -s -X POST http://localhost:8081/mcp \
 - **Tool Namespacing**: Prevents conflicts between servers
 - **Error Recovery**: Automatic process restart on crashes
 - **Session Management**: Proper MCP session handling
-- **Inactivity Timeout**: Auto-shutdown after 15 minutes of inactivity
+- **Inactivity Timeout**: Auto-shutdown after 1 hour of inactivity
 
 ## Next Steps
 
