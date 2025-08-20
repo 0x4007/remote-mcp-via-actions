@@ -6,6 +6,8 @@ export class ServerDiscoveryEngine {
   private baseDir = path.resolve(process.cwd(), '../../mcp-servers');
   
   async scanSubmodules(): Promise<MCPServerDescriptor[]> {
+    console.log(`📂 Scanning for MCP servers in: ${this.baseDir}`);
+    
     if (!fs.existsSync(this.baseDir)) {
       console.warn(`MCP servers directory not found: ${this.baseDir}`);
       return [];
@@ -13,6 +15,8 @@ export class ServerDiscoveryEngine {
     
     const servers: MCPServerDescriptor[] = [];
     const entries = fs.readdirSync(this.baseDir, { withFileTypes: true });
+    console.log(`📁 Found ${entries.length} entries in mcp-servers directory`);
+    console.log(`📁 Directories: ${entries.filter(e => e.isDirectory()).map(e => e.name).join(', ')}`);
     
     for (const entry of entries) {
       if (entry.isDirectory() && !entry.name.startsWith('.')) {
@@ -28,11 +32,27 @@ export class ServerDiscoveryEngine {
       }
     }
     
+    console.log(`📊 Total servers discovered: ${servers.length}`);
     return servers;
   }
   
   private async detectServer(name: string, serverPath: string): Promise<MCPServerDescriptor | null> {
     console.log(`🔍 Universal detection for ${name}:`);
+    console.log(`  - Path: ${serverPath}`);
+    
+    // Check if directory actually exists
+    if (!fs.existsSync(serverPath)) {
+      console.log(`  ❌ Directory does not exist: ${serverPath}`);
+      return null;
+    }
+    
+    // List files in directory for debugging
+    try {
+      const files = fs.readdirSync(serverPath).slice(0, 10);
+      console.log(`  - Files: ${files.join(', ')}${files.length === 10 ? '...' : ''}`);
+    } catch (e) {
+      console.log(`  - Could not list files: ${e}`);
+    }
     
     const binaryPath = path.join(serverPath, name);
     const hasBinary = fs.existsSync(binaryPath) && this.isExecutable(binaryPath);
