@@ -12,7 +12,7 @@ export class UniversalMCPGateway {
   private router = new DynamicMCPRouter();
   private startTime = Date.now();
   private lastActivity = Date.now();
-  private inactivityTimeout = 60 * 60 * 1000; // 1 hour in milliseconds
+  private inactivityTimeout = 5 * 60 * 1000; // 5 minutes in milliseconds
   private shutdownTimer?: NodeJS.Timeout;
   private activeSessions = 0;
   
