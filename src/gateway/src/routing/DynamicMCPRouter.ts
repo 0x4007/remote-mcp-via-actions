@@ -81,7 +81,7 @@ export class DynamicMCPRouter {
           result: {
             status: 'ok',
             server: serverName,
-            protocol: '2024-11-05',
+            protocol: '2025-06-18',
             session: sessionId
           }
         });
@@ -150,7 +150,7 @@ export class DynamicMCPRouter {
           sessionId = uuidv4();
           this.activeSessions.set(sessionId, {
             created: new Date(),
-            protocolVersion: params?.protocolVersion || '2024-11-05'
+            protocolVersion: params?.protocolVersion || '2025-06-18'
           });
         }
         
@@ -195,7 +195,7 @@ export class DynamicMCPRouter {
           const sessionId = uuidv4();
           this.activeSessions.set(sessionId, {
             created: new Date(),
-            protocolVersion: params?.protocolVersion || '2024-11-05'
+            protocolVersion: params?.protocolVersion || '2025-06-18'
           });
 
           res.setHeader('Mcp-Session-Id', sessionId);
@@ -203,7 +203,7 @@ export class DynamicMCPRouter {
             jsonrpc: '2.0',
             id,
             result: {
-              protocolVersion: params?.protocolVersion || '2024-11-05',
+              protocolVersion: params?.protocolVersion || '2025-06-18',
               capabilities: {
                 tools: {},
                 logging: {},
@@ -348,7 +348,7 @@ export class DynamicMCPRouter {
           jsonrpc: '2.0',
           result: {
             status: 'ok',
-            protocol: '2024-11-05',
+            protocol: '2025-06-18',
             gateway: 'universal-mcp-gateway',
             session: sessionId,
             servers: serverStatus.map(s => ({

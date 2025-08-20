@@ -105,7 +105,7 @@ export class UniversalMCPGateway {
     return await Promise.all(setupPromises);
   }
   
-  async start(port = 8080) {
+  async start(port = 6277) {
     await this.initialize();
     
     // Start the inactivity timer
