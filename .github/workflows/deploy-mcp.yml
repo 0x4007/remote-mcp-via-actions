@@ -164,11 +164,15 @@ jobs:
           export DEPLOYMENT_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           
           # Ensure OPENROUTER_API_KEY is available
+          echo "DEBUG: Raw OPENROUTER_API_KEY value: '${OPENROUTER_API_KEY}'"
+          echo "DEBUG: OPENROUTER_API_KEY length: ${#OPENROUTER_API_KEY}"
           if [ -z "${OPENROUTER_API_KEY}" ]; then
-            echo "❌ ERROR: OPENROUTER_API_KEY is not set!"
-            echo "Please ensure OPENROUTER_API_KEY is added to GitHub Secrets"
+            echo "❌ ERROR: OPENROUTER_API_KEY is not set or empty!"
+            echo "Please ensure OPENROUTER_API_KEY is added to GitHub Secrets with a valid value"
+            echo "❌ DEPLOYMENT WILL FAIL - Zen server requires API key"
           else
             echo "✅ OPENROUTER_API_KEY is set (length: ${#OPENROUTER_API_KEY})"
+            echo "✅ First 10 chars: ${OPENROUTER_API_KEY:0:10}..."
             export OPENROUTER_API_KEY="${OPENROUTER_API_KEY}"
           fi
 
