@@ -103,6 +103,18 @@ jobs:
             cd mcp-servers/zen-mcp-server
             pip install -r requirements.txt
             echo "✅ Zen server dependencies installed"
+            
+            # Verify Python can import the required modules
+            echo ""
+            echo "Verifying Python modules:"
+            python -c "import asyncio; import json; import sys; print('✅ Core modules available')"
+            
+            # Test if server.py can be executed
+            echo ""
+            echo "Testing server.py execution:"
+            python -c "import sys; sys.path.insert(0, '.'); exec(open('server.py').read(), {'__name__': '__test__'})" 2>&1 | head -5 || echo "Server.py test completed"
+            
+            cd ../..
           else
             echo "⚠️ Zen server requirements.txt not found - submodules may not be checked out"
             ls -la mcp-servers/
@@ -161,11 +173,17 @@ jobs:
           
           # Show server startup logs
           echo ""
-          echo "Server startup logs (first 50 lines):"
-          head -50 bridge.log
+          echo "Server startup logs (first 100 lines):"
+          head -100 bridge.log
           echo ""
           echo "Checking for Zen server initialization:"
           grep -i "zen" bridge.log || echo "No Zen server logs found"
+          echo ""
+          echo "Checking for Python errors:"
+          grep -i "python\|error\|exception\|failed" bridge.log | head -20 || echo "No Python errors found"
+          echo ""
+          echo "Checking discovered servers:"
+          grep -i "examining server\|valid MCP server\|skipping" bridge.log || echo "No server discovery logs found"
 
       - name: Set up Cloudflare Tunnel
         uses: AnimMouse/setup-cloudflared@v1

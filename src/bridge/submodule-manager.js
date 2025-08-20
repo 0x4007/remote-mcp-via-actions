@@ -47,6 +47,8 @@ class SubmoduleManager {
   }
 
   async discoverSubmodules() {
+    console.log(`Looking for MCP servers in: ${this.mcpServersDir}`);
+    
     if (!fs.existsSync(this.mcpServersDir)) {
       console.log('MCP servers directory does not exist, creating it...');
       fs.mkdirSync(this.mcpServersDir, { recursive: true });
@@ -54,10 +56,14 @@ class SubmoduleManager {
     }
 
     const entries = fs.readdirSync(this.mcpServersDir, { withFileTypes: true });
+    console.log(`Found ${entries.length} entries in MCP servers directory`);
     
     for (const entry of entries) {
+      console.log(`Checking entry: ${entry.name} (isDirectory: ${entry.isDirectory()})`);
+      
       if (entry.isDirectory() && !entry.name.startsWith('.')) {
         const serverPath = path.join(this.mcpServersDir, entry.name);
+        console.log(`Examining server directory: ${serverPath}`);
         
         // Check if it's a valid MCP server (has package.json, index.js, pyproject.toml, or server.py)
         const hasPackageJson = fs.existsSync(path.join(serverPath, 'package.json'));
@@ -66,13 +72,21 @@ class SubmoduleManager {
         const hasServerPy = fs.existsSync(path.join(serverPath, 'server.py'));
         const hasMainFile = this.findMainFile(serverPath);
         
+        console.log(`  hasPackageJson: ${hasPackageJson}`);
+        console.log(`  hasIndexJs: ${hasIndexJs}`);
+        console.log(`  hasPyProjectToml: ${hasPyProjectToml}`);
+        console.log(`  hasServerPy: ${hasServerPy}`);
+        console.log(`  hasMainFile: ${hasMainFile}`);
+        
         // Also check if server is explicitly configured
         const isConfigured = this.config.servers[entry.name] && this.config.servers[entry.name].enabled !== false;
+        console.log(`  isConfigured: ${isConfigured} (enabled: ${this.config.servers[entry.name]?.enabled})`);
         
         if (hasPackageJson || hasIndexJs || hasPyProjectToml || hasServerPy || hasMainFile || isConfigured) {
+          console.log(`✓ ${entry.name} is a valid MCP server, initializing...`);
           await this.initializeServer(entry.name);
         } else {
-          console.log(`Skipping ${entry.name}: not a valid MCP server directory`);
+          console.log(`✗ Skipping ${entry.name}: not a valid MCP server directory`);
         }
       }
     }
