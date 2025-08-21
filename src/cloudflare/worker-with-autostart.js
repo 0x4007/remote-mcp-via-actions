@@ -4,8 +4,6 @@
 
 export default {
   async fetch(request, env) {
-    console.log('Request received:', request.method, request.url);
-    
     // Handle CORS preflight first
     if (request.method === 'OPTIONS') {
       return new Response(null, {
@@ -18,18 +16,11 @@ export default {
     }
 
     // Get the current tunnel URL from KV storage
-    let targetUrl = null;
+    let targetUrl;
     try {
-      const kvValue = await env.MCP_TUNNEL_URL.get('url');
-      console.log('Raw KV value:', kvValue);
-      // Only use the URL if it's actually set and not empty
-      if (kvValue && kvValue.trim() !== '') {
-        targetUrl = kvValue;
-      }
-      console.log('Tunnel URL from KV:', targetUrl);
+      targetUrl = await env.MCP_TUNNEL_URL.get('url');
     } catch (error) {
       console.log('Failed to get tunnel URL from KV:', error);
-      targetUrl = null;
     }
     
     // Clone the request to read body without consuming it (for checking if it's an init request)
@@ -48,24 +39,15 @@ export default {
       
       // Check if this is an MCP initialization request
       isInit = body.includes('"method":"initialize"');
-      console.log('Request body check - isInit:', isInit, 'requestId:', requestId);
     } catch (error) {
       console.log('Error checking request body:', error);
     }
     
     // If this is an init request and server is not available, trigger auto-start
     if (isInit && !targetUrl) {
-      console.log('Auto-start check - env keys:', Object.keys(env));
-      console.log('GITHUB_TOKEN exists in env:', 'GITHUB_TOKEN' in env);
-      console.log('GITHUB_TOKEN type:', typeof env.GITHUB_TOKEN);
-      
-      // Secrets in Workers are accessed directly, not as promises
-      const token = env.GITHUB_TOKEN;
-      console.log('Token retrieved, exists:', !!token);
-      
       try {
         // Server is down - trigger GitHub Action to start it
-        await triggerGitHubAction(token);
+        await triggerGitHubAction(env.GITHUB_TOKEN);
         
         // Return immediate error response with retry instructions
         return new Response(JSON.stringify({
@@ -92,27 +74,7 @@ export default {
         });
       } catch (error) {
         console.error('Failed to trigger GitHub Action:', error);
-        // Return error response when auto-start fails
-        return new Response(JSON.stringify({
-          "jsonrpc": "2.0",
-          "id": requestId,
-          "error": {
-            "code": -32603,
-            "message": "MCP Server temporarily unavailable",
-            "data": {
-              "details": "Failed to auto-start server. Please try again later or start manually.",
-              "error": error.message
-            }
-          }
-        }), {
-          status: 503,
-          headers: {
-            "Content-Type": "application/json",
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization, Mcp-Session-Id, MCP-Protocol-Version, Last-Event-ID'
-          }
-        });
+        // Fall through to normal "unavailable" response
       }
     }
     
@@ -136,7 +98,6 @@ export default {
       });
     }
     
-    // Only proceed with proxying if we have a valid tunnel URL
     // Create new request pointing to the dynamic tunnel URL
     const url = new URL(request.url);
     const targetEndpoint = `${targetUrl}${url.pathname}${url.search}`;
@@ -187,7 +148,6 @@ export default {
 };
 
 async function triggerGitHubAction(token) {
-  console.log('Triggering GitHub Action, token present:', !!token);
   if (!token) {
     throw new Error('GitHub token not configured');
   }
