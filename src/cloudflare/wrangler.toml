@@ -1,6 +1,6 @@
 name = "mcp-proxy"
 main = "worker.js"
-compatibility_date = "2024-01-01"
+compatibility_date = "2025-08-15"
 account_id = "5c0228bee348f4cf48829ffe21b61fe9"
 
 [env.production]
@@ -11,3 +11,6 @@ routes = [
 [[env.production.kv_namespaces]]
 binding = "MCP_TUNNEL_URL"
 id = "7e1605c08a3c407c9f8a331f25b5c117"
+
+[observability.logs]
+enabled = false

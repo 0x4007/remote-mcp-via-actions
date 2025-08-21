@@ -53,8 +53,46 @@ export default {
       console.log('Error checking request body:', error);
     }
     
+    // Check if server is actually healthy if we have a URL
+    let serverHealthy = false;
+    if (targetUrl) {
+      try {
+        // Quick health check with short timeout
+        const healthResponse = await fetch(targetUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            "jsonrpc": "2.0",
+            "method": "initialize",
+            "params": {},
+            "id": "health-check"
+          }),
+          signal: AbortSignal.timeout(3000) // 3 second timeout
+        });
+        
+        // Check if we got a successful response
+        serverHealthy = healthResponse.ok; // true if status is 200-299
+        console.log('Health check result:', serverHealthy, 'Status:', healthResponse.status);
+        
+        if (!serverHealthy) {
+          // Clear the stale URL from KV
+          console.log('Clearing stale URL from KV');
+          await env.MCP_TUNNEL_URL.put('url', '');
+          targetUrl = null;
+        }
+      } catch (error) {
+        console.log('Health check failed:', error);
+        // Clear the stale URL from KV
+        await env.MCP_TUNNEL_URL.put('url', '');
+        targetUrl = null;
+        serverHealthy = false;
+      }
+    }
+    
     // If this is an init request and server is not available, trigger auto-start
-    if (isInit && !targetUrl) {
+    if (isInit && (!targetUrl || !serverHealthy)) {
       console.log('Auto-start check - env keys:', Object.keys(env));
       console.log('GITHUB_TOKEN exists in env:', 'GITHUB_TOKEN' in env);
       console.log('GITHUB_TOKEN type:', typeof env.GITHUB_TOKEN);
