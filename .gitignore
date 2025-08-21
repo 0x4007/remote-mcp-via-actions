@@ -53,3 +53,5 @@ docs/.jekyll-cache/
 .claude-flow/
 node_modules/
 server.pid
+# Git worktrees
+remote-mcp-via-actions-worktrees/

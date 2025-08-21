@@ -1,0 +1,18 @@
+name = "mcp-proxy"
+main = "worker.js"
+compatibility_date = "2025-01-21"
+account_id = "5c0228bee348f4cf48829ffe21b61fe9"
+workers_dev = true
+
+[[kv_namespaces]]
+binding = "MCP_KV"
+id = "7e1605c08a3c407c9f8a331f25b5c117"
+
+# Custom domain route
+[[routes]]
+pattern = "mcp.pavlovcik.com/*"
+zone_name = "pavlovcik.com"
+
+[vars]
+# GitHub token will be added as a secret using:
+# bunx wrangler secret put GITHUB_TOKEN
