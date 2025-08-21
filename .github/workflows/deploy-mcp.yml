@@ -6,7 +6,6 @@ on:
 jobs:
   host-mcp:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
     concurrency:
       group: deploy-mcp-${{ github.ref }}
       cancel-in-progress: true
@@ -381,12 +380,12 @@ jobs:
           echo "Available tools: 21+ tools from main, calculator, and Zen servers"
           echo "Protocol: MCP Streamable HTTP 2025-06-18"
           echo ""
-          echo "⏱️  Server has a 1-hour inactivity timeout"
-          echo "The server will automatically shut down if no MCP requests are received for 1 hour."
+          echo "⏱️  Server has a 15-minute inactivity timeout"
+          echo "The server will automatically shut down if no MCP requests are received for 15 minutes."
           echo "Health check requests do not reset the timeout timer."
           echo ""
           echo "Server will keep running until either:"
-          echo "  - 1 hour of inactivity (no MCP requests)"
+          echo "  - 15 minutes of inactivity (no MCP requests)"
           echo "  - GitHub Actions timeout (6 hours max)"
           echo ""
           BRIDGE_PID=$(pgrep -f "node server.js")
