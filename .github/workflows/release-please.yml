@@ -24,8 +24,9 @@ jobs:
           # Ensure tags are prefixed with 'v'
           include-v-in-tag: true
           
-          # Version file to track (optional)
-          # version-file: version.txt
+          # Config files in .github folder
+          config-file: .github/release-please-config.json
+          manifest-file: .github/.release-please-manifest.json
           
       # Optional: Trigger deployment on release
       - name: Trigger Deployment on Release
