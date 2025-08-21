@@ -20,23 +20,10 @@ jobs:
           # Choose release type based on your project
           # Options: node, python, go, rust, simple, etc.
           release-type: simple
-          
+
           # Ensure tags are prefixed with 'v'
           include-v-in-tag: true
-          
+
           # Config files in .github folder
           config-file: .github/release-please-config.json
           manifest-file: .github/.release-please-manifest.json
-          
-      # Optional: Trigger deployment on release
-      - name: Trigger Deployment on Release
-        if: ${{ steps.release.outputs.release_created }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'deploy-mcp.yml',
-              ref: '${{ steps.release.outputs.tag_name }}'
-            });
